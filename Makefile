@@ -12,6 +12,9 @@ STARTUP_DEFS=-D__STARTUP_CLEAR_BSS -D__START=main -DRAM_MODE=1
 # unused without following option
 CFLAGS+=-fno-builtin
 
+
+MAP=-Wl,-Map=$(BUILD_DIR)/$(NAME).map
+
 LDSCRIPTS=-L. -L $(NXP_BASE)/ldscripts -T gcc.ld
 
 INC = -I $(NXP_BASE)/CMSIS/CM0/DeviceSupport/NXP/LPC11xx/ -I $(NXP_BASE)/CMSIS/CM0/CoreSupport/ -I $(UNITY_BASE)/src
@@ -20,14 +23,14 @@ LFLAGS=$(USE_NANO) $(USE_NOHOST) $(LDSCRIPTS) $(GC) $(MAP)
 
 TARGET=blink-CM0
 
-all: $(TARGET).hex
+all: $(BUILD_DIR)/$(TARGET).hex
 
 %.hex: %.axf
 	@arm-none-eabi-size $^;
 	@arm-none-eabi-objcopy -O ihex $^ $@;
 
-$(NAME)-$(CORE).axf: $(SRC_DIR)/$(NAME).c $(STARTUP) $(SYSTEM)
+$(BUILD_DIR)/$(NAME)-$(CORE).axf: $(SRC_DIR)/$(NAME).c $(STARTUP) $(SYSTEM)
 	$(CC) $^ $(CFLAGS) $(INC) $(LFLAGS) -o $@
 
 clean:
-	rm -f *.axf *.map *.o *.hex
+	rm -f $(BUILD_DIR)/*.axf $(BUILD_DIR)/*.map $(BUILD_DIR)/*.o $(BUILD_DIR)/*.hex
