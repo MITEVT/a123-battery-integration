@@ -28,7 +28,7 @@ MAP=-Wl,-Map=$(BUILD_DIR)/$(NAME).map
 
 LDSCRIPTS=-L. -L $(NXP_BASE)/ldscripts -T gcc.ld
 
-INC = -I $(NXP_BASE)/CMSIS/CM0/DeviceSupport/NXP/LPC11xx/ -I $(NXP_BASE)/CMSIS/CM0/CoreSupport/
+INC=$(INC_DRIVERS) $(INC_DEVICE)
 
 LFLAGS=$(USE_NANO) $(USE_NOHOST) $(LDSCRIPTS) $(GC) $(MAP)
 
