@@ -1,9 +1,7 @@
-#include "LPC11xx.h"
-// #include "system_LPC11xx.h"
-// #include "system_LPC11xx.c"
+#include "chip.h"
 
 
-#define LED_PIN 4
+#define LED_PIN 7
 
 volatile uint32_t msTicks;
 
@@ -17,22 +15,28 @@ __INLINE static void Delay(uint32_t dlyTicks) {
 }
 
 __INLINE static void GPIO_Config(void) {
-	LPC_SYSCON->SYSAHBCLKCTRL |= (1 << 6); //Enable GPIO Clock
+	Chip_GPIO_Init(LPC_GPIO);
+
 }
 
 __INLINE static void LED_Config(void) {
-	LPC_GPIO0->DIR |= (1 << LED_PIN);
+	Chip_GPIO_WriteDirBit(LPC_GPIO, 0, LED_PIN, true);
+
 }
 
 __INLINE static void LED_On(void) {
-	LPC_GPIO0->DATA |= (1 << LED_PIN);
+	Chip_GPIO_SetPinState(LPC_GPIO, 0, LED_PIN, true);
 }
 
 __INLINE static void LED_Off(void) {
-	LPC_GPIO0->DATA &= ~(1 << LED_PIN);
+	Chip_GPIO_SetPinState(LPC_GPIO, 0, LED_PIN, false);
 }
 
 int main (void) {
+
+	SystemCoreClockUpdate();
+
+
 	if (SysTick_Config (SystemCoreClock / 1000)) {
 		//Error
 		while(1);
@@ -43,8 +47,8 @@ int main (void) {
 
 	while(1) {
 		LED_On();
-		Delay(100);
+		Delay(1000);
 		LED_Off();
-		Delay(100);
+		Delay(1000);
 	}
 }

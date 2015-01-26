@@ -15,38 +15,82 @@ TEST_SRC=\
   test/test_runners/TestProductionCode_Runner.c \
   test/test_runners/all_tests.c
 
-NAME=blink
+
+###############
+
+###
+# Directory Structure
+BINDIR=bin
+SRCDIR=src
+BUILDDIR=build
+
+DRIVERS= 	gpio_11xx_2.c \
+
+DRIVERS_SRC=$(addprefix $(CHIP_SRC)/, $(DRIVERS)) 
+
+ASOURCES=$(shell find -L $(SRCDIR) -name '*.S')
+ASOURCES+=$(STARTUP)
+CSOURCESI=$(shell find -L $(SRCDIR) -name '*.c')
+CSOURCES=$(CSOURCESI) $(DRIVERS_SRC)
+
+OBJECTS=$(ASOURCES:%.S=%.o)
+OBJECTS+=$(CSOURCES:%.c=%.o)
+
+
+
+BINELF=outp.elf
+BINHEX=outp.hex
+
+include $(NXP_BASE)/makefile.conf
 
 STARTUP_DEFS=-D__STARTUP_CLEAR_BSS -D__START=main -DRAM_MODE=1
 
+
 # Need following option for LTO as LTO will treat retarget functions as
 # unused without following option
-CFLAGS+=-fno-builtin
-
-
-MAP=-Wl,-Map=$(BUILD_DIR)/$(NAME).map
+CFLAGS+=-fno-builtin -DCORE_M0
 
 LDSCRIPTS=-L. -L $(NXP_BASE)/ldscripts -T gcc.ld
 
-INC=$(INC_DRIVERS) $(INC_DEVICE)
+INC = $(CHIP_INC)
+
+DEFINE= -DCORE_M0
+CFLAGS= -c $(MCFLAGS) $(INC) $(DEFINE) $(USE_NOHOST)
 
 LFLAGS=$(USE_NANO) $(USE_NOHOST) $(LDSCRIPTS) $(GC) $(MAP)
 
-TARGET=blink-CM0
 
-all: $(BUILD_DIR)/$(TARGET).hex test
+# System code
+SYSTEM=sysinit.c
+
+TARGET=$(NAME)-CM0
+
+all: release
+
+release: $(BINDIR)/$(BINHEX)
+
+$(BINDIR)/$(BINHEX): $(BINDIR)/$(BINELF)
+	$(CP) -O ihex $< $@
+	@echo "Objcopy from ELF to IHEX complete!\n"
+
+$(BINDIR)/$(BINELF): $(OBJECTS)
+	$(CC) $(OBJECTS) $(LFLAGS) -o $@
+	@echo "Linking complete!\n"
+	$(SIZE) $(BINDIR)/$(BINELF)
+
+%.o: %.c
+	$(CC) $(CFLAGS) $< -o $@
+	@echo "Compiled "$<"!\n"
+
+%.o: %.S
+	$(CC) $(CFLAGS) $< -o $@
+	@echo "Assambled "$<"!\n"
+
+clean:
+	rm -f $(OBJECTS) $(BINDIR)/$(BINELF) $(BINDIR)/$(BINHEX) $(BINDIR)/output.map
+
 
 .PHONY: test
 test:
 	$(TEST_C_COMPILER) $(TEST_INC) $(TEST_SYMBOLS) $(TEST_SRC) -o $(TEST_TARGET)
 	./$(TEST_TARGET)
-
-%.hex: %.axf
-	@arm-none-eabi-size $^;
-	@arm-none-eabi-objcopy -O ihex $^ $@;
-
-$(BUILD_DIR)/$(NAME)-$(CORE).axf: $(SRC_DIR)/$(NAME).c $(STARTUP) $(SYSTEM)
-	$(CC) $^ $(CFLAGS) $(INC) $(LFLAGS) -o $@
-
-clean:
-	rm -f $(BUILD_DIR)/*.axf $(BUILD_DIR)/*.map $(BUILD_DIR)/*.o $(BUILD_DIR)/*.hex
