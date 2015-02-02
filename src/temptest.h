@@ -1,4 +1,1 @@
-
-int addOne(int i) {
-	return i+1;
-}
+int addOne(int i);
