@@ -267,7 +267,7 @@ test : C_FLAGS_F 	= $(C_FLAGS_F_TEST)
 test : AS_FLAGS_F 	= $(AS_FLAGS_F_TEST)
 test : LD_FLAGS_F 	= $(LD_FLAGS_F_TEST)
 
-.PHONY:
+.PHONY: test
 test : make_test_output_dir $(TEST_TARGET)
 	./$(TEST_TARGET)
 
