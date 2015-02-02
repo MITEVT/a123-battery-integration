@@ -56,6 +56,7 @@ TEST_SRCS_DIRS = test $(UNITY_BASE)/src $(UNITY_BASE)/extras/fixture/src
 
 # c files for testing
 C_SRCS_TEST = 	src/temptest.c \
+				$(wildcard $(patsubst %, %/*.$(C_EXT), . devices)) \
 				$(wildcard $(patsubst %, %/*.$(C_EXT), . $(TEST_SRCS_DIRS)))
 
 # C++ definitions (e.g. "-Dsymbol_with_value=0xDEAD -Dsymbol_without_value")
@@ -139,7 +140,7 @@ CLOCK_OSC = 12000
 # set the VPATH according to SRCS_DIRS
 #=============================================================================#
 
-VPATH = $(SRCS_DIRS) test $(UNITY_BASE)/extras/fixture/src $(UNITY_BASE)/src
+VPATH = $(SRCS_DIRS) test $(UNITY_BASE)/extras/fixture/src $(UNITY_BASE)/src devices
 
 #=============================================================================#
 # when using output folder, append trailing slash to its name

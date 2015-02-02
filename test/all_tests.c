@@ -3,6 +3,7 @@
 static void RunAllTests(void)
 {
   RUN_TEST_GROUP(ProductionCode);
+  RUN_TEST_GROUP(A123_CAN_decode);
 }
 
 int main(int argc, char * argv[])
