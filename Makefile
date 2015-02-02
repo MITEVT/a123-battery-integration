@@ -235,8 +235,7 @@ AS_FLAGS_F_TEST = $(AS_FLAGS) $(AS_DEFS) -MD -MP -MF $(OUT_DIR_F)$(@F:.o=.d) $(I
 LD_FLAGS_F_TEST = $(LIB_DIRS_F_TEST)
 
 #contents of output directory
-GENERATED = $(wildcard $(patsubst %, $(OUT_DIR_F)*.%, bin d dmp elf hex lss lst map o))
-GENERATED += $(wildcard $(patsubst %, $( OUT_DIR_TEST_F)*.%, bin d dmp elf hex lss lst map o))
+GENERATED = $(wildcard $(patsubst %, $(OUT_DIR_F)*.%, bin d dmp elf hex lss lst map o)) $(wildcard $(patsubst %, $(OUT_DIR_TEST_F)*.%, bin d dmp elf hex lss lst map o)) $(TEST_TARGET)
 
 
 #=============================================================================#
@@ -256,11 +255,6 @@ cross : AS_FLAGS_F 	= $(AS_FLAGS_F_CROSS)
 cross : LD_FLAGS_F 	= $(LD_FLAGS_F_CROSS)
 
 cross : make_output_dir $(ELF) $(LSS) $(DMP) $(HEX) $(BIN) print_size
-
-.PHONY:
-asdf:
-	@echo $(C_SRCS_TEST)
-
 
 test : CXX 		= $(CXX_TEST)
 test : CC 			= $(CC_TEST)
