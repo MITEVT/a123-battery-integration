@@ -5,6 +5,7 @@
 # last change: 2012-01-08
 #
 # this makefile is based strongly on many examples found in the network
+# modified by EPONCE and NARANGO 2015-01-30
 #=============================================================================#
 
 #=============================================================================#
@@ -52,11 +53,10 @@ OUT_DIR = bin
 # test out folder
 OUT_DIR_TEST = testbin
 
-TEST_SRCS_DIRS = test $(UNITY_BASE)/src $(UNITY_BASE)/extras/fixture/src
+TEST_SRCS_DIRS = test $(UNITY_BASE)/src $(UNITY_BASE)/extras/fixture/src src/devices
 
 # c files for testing
 C_SRCS_TEST = 	src/temptest.c \
-				$(wildcard $(patsubst %, %/*.$(C_EXT), . devices)) \
 				$(wildcard $(patsubst %, %/*.$(C_EXT), . $(TEST_SRCS_DIRS)))
 
 # C++ definitions (e.g. "-Dsymbol_with_value=0xDEAD -Dsymbol_without_value")
@@ -137,10 +137,10 @@ BAUDRATE = 115200
 CLOCK_OSC = 12000
 
 #=============================================================================#
-# set the VPATH according to SRCS_DIRS
+# set the VPATH according to SRCS_DIRS and test sources
 #=============================================================================#
 
-VPATH = $(SRCS_DIRS) test $(UNITY_BASE)/extras/fixture/src $(UNITY_BASE)/src devices
+VPATH = $(SRCS_DIRS) $(TEST_SRCS_DIRS)
 
 #=============================================================================#
 # when using output folder, append trailing slash to its name
@@ -299,7 +299,7 @@ $(ELF) : $(OBJS_F)
 # compiling - C++ source -> objects
 #-----------------------------------------------------------------------------#
 
-$(OUT_DIR_F)%.o : %.$(CXX_EXT)
+*/%.o : %.$(CXX_EXT)
 	@echo 'Compiling file: $<'
 	$(CXX) -c $(CXX_FLAGS_F) $< -o $@
 	@echo ' '
@@ -308,21 +308,17 @@ $(OUT_DIR_F)%.o : %.$(CXX_EXT)
 # compiling - C source -> objects
 #-----------------------------------------------------------------------------#
 
-$(OUT_DIR_F)%.o : %.$(C_EXT)
+*/%.o : %.$(C_EXT)
 	@echo 'Compiling file: $<'
 	$(CC) -c $(C_FLAGS_F) $< -o $@
 	@echo ' '
 
-$(OUT_DIR_TEST_F)%.o : %.$(C_EXT)
-	@echo 'Compiling file: $<'
-	$(CC) -c $(C_FLAGS_F_TEST) $< -o $@
-	@echo ' '
 
 #-----------------------------------------------------------------------------#
 # assembling - ASM source -> objects
 #-----------------------------------------------------------------------------#
 
-$(OUT_DIR_F)%.o : %.$(AS_EXT)
+*/%.o : %.$(AS_EXT)
 	@echo 'Assembling file: $<'
 	$(AS) -c $(AS_FLAGS_F) $< -o $@
 	@echo ' '
@@ -396,7 +392,7 @@ clean:
 ifeq ($(strip $(OUT_DIR_F)), )
 	@echo 'Removing all generated output files'
 else
-	@echo 'Removing all generated output files from output directory: $(OUT_DIR_F)'
+	@echo 'Removing all generated output files from output directorys: $(OUT_DIR_F) and $(OUT_DIR_TEST_F)'
 endif
 ifneq ($(strip $(GENERATED)), )
 	$(RM) $(GENERATED)
