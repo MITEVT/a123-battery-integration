@@ -56,8 +56,7 @@ OUT_DIR_TEST = testbin
 TEST_SRCS_DIRS = test $(UNITY_BASE)/src $(UNITY_BASE)/extras/fixture/src src/devices
 
 # c files for testing
-C_SRCS_TEST = 	src/temptest.c \
-				$(wildcard $(patsubst %, %/*.$(C_EXT), . $(TEST_SRCS_DIRS)))
+C_SRCS_TEST = $(wildcard $(patsubst %, %/*.$(C_EXT), . $(TEST_SRCS_DIRS)))
 
 # C++ definitions (e.g. "-Dsymbol_with_value=0xDEAD -Dsymbol_without_value")
 CXX_DEFS =
@@ -84,7 +83,7 @@ LIBS =
 
 # additional directories with source files (absolute or relative paths to
 # folders with source files, current folder is always included)
-SRCS_DIRS = ../lpc11cx4-io/lpc_chip_11cxx_lib/src src/
+SRCS_DIRS = ../lpc11cx4-io/lpc_chip_11cxx_lib/src src/ src/debug src/devices
 
 # extension of C++ files
 CXX_EXT = cpp

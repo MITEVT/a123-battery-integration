@@ -30,6 +30,7 @@
  */
 
 #include "chip.h"
+#include "debug/debug.h"
 
 /*****************************************************************************
  * Private types/enumerations/variables
@@ -202,7 +203,7 @@ void CAN_tx(uint8_t msg_obj_num) {}
     an error has occured on the CAN bus */
 void CAN_error(uint32_t error_info) {
 	LED2_On();
-	Chip_UART_SendBlocking(LPC_USART, "Error\n", 7);
+	Debug_Write("Error\n");
 }
 
 /**
@@ -237,19 +238,12 @@ int main(void)
 	LED_Config();
 
 	//---------------
-	//UART
-	Chip_IOCON_PinMuxSet(LPC_IOCON, IOCON_PIO1_6, (IOCON_FUNC1 | IOCON_MODE_INACT));/* RXD */
-	Chip_IOCON_PinMuxSet(LPC_IOCON, IOCON_PIO1_7, (IOCON_FUNC1 | IOCON_MODE_INACT));/* TXD */
+	//Debug printing
+	Debug_Config();
+	Debug_Write("Started Up\n");
 
-	Chip_UART_Init(LPC_USART);
-	Chip_UART_SetBaud(LPC_USART, 9600);
-	Chip_UART_ConfigData(LPC_USART, (UART_LCR_WLEN8 | UART_LCR_SBS_1BIT | UART_LCR_PARITY_DIS));
-	Chip_UART_SetupFIFOS(LPC_USART, (UART_FCR_FIFO_EN | UART_FCR_TRG_LEV2));
-	Chip_UART_TXEnable(LPC_USART);
 	//---------------
 
-	char *startMessage = "Started Up\n";
-	Chip_UART_SendBlocking(LPC_USART, startMessage, 12);
 
 	//---------------
 	//Ring Buffer
@@ -293,7 +287,7 @@ int main(void)
 		if (!RingBuffer_IsEmpty(&rx_buffer)) {
 			CCAN_MSG_OBJ_T temp_msg;
 			RingBuffer_Pop(&rx_buffer, &temp_msg);
-			Chip_UART_SendBlocking(LPC_USART, "Received Message\n", 18);
+			Debug_Write("Received Message\n");
 		}	
 	}
 }
