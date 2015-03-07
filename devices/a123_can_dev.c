@@ -1,25 +1,26 @@
 #include "a123_can_dev.h"
 
-// int a123_decode(a123_msg_t *msg, uint16_t id, uint8_t dlc, uint8_t *buffer) {
-// 	uint64_t buf = 0;
-// 	int i;
+int a123_decode(a123_msg_t *msg, uint16_t id, uint8_t dlc, uint8_t *buffer) {
+	uint64_t buf = 0;
+	int i;
 
-// 	/* Convert buffer to 64 bit value */
-// 	for (i = 0; i < 8; i++) {
-// 		buf += buffer[i] << (7 - i)*8;
-// 	}
+	/* Convert buffer to 64 bit value */
+	for (i = 0; i < 8; i++) {
+		buf += buffer[i] << (7 - i)*8;
+	}
 
-// 	switch (id) {
-// 		case MBB_STANDARD_ID:
-// 			mbb_std_msg_t *msgptr = (mbb_std_msg_t*)(msg->msg);
-// 			a123_decode_standard(msgptr, buf);
-// 			break;
-// 		default:
-// 			return 0;
-// 	}
+	switch (id) {
+		case MBB_STANDARD_ID: {
+			mbb_std_msg_t *msgptr = (mbb_std_msg_t*)(&(msg->msg));
+			a123_decode_standard(msgptr, buf);
+			break;
+		}
+		default:
+			return 0;
+	}
 
-// 	return 1;
-// }
+	return 1;
+}
 
 void a123_decode_standard(mbb_std_msg_t *msgptr, uint64_t buf) {
 	msgptr->cell_overvolt = (buf >> MBB_CELL_OVERVOLT_SHIFT) & MBB_CELL_OVERVOLT_MASK;
@@ -31,7 +32,7 @@ void a123_decode_standard(mbb_std_msg_t *msgptr, uint64_t buf) {
 	msgptr->v_max = ((buf >> MBB_V_MAX_SHIFT) & MBB_V_MAX_MASK) * MBB_V_MAX_SCALE + MBB_V_MAX_OFFSET;
 	msgptr->bal_cnt = (buf >> MBB_BAL_COUNT_SHIFT) & MBB_BAL_COUNT_MASK;
 	msgptr->v_ave = ((buf >> MBB_V_AVE_SHIFT) & MBB_V_AVE_MASK) * MBB_V_AVE_SCALE + MBB_V_AVE_OFFSET;
-	msgptr->voltage_compare_oor = (buf >> MBB_VOLTAGE_COMPARE_OOR_SHIFT) * MBB_VOLTAGE_COMPARE_OOR_MASK;
+	msgptr->voltage_compare_oor = (buf >> MBB_VOLTAGE_COMPARE_OOR_SHIFT) & MBB_VOLTAGE_COMPARE_OOR_MASK;
 }
 
 void a123_encode_bcm_cmd(bcm_cmd_msg_t *msg, uint8_t *buffer) {
