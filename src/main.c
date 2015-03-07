@@ -1,182 +1,67 @@
-/*
- * @brief CCAN on-chip driver example
- *
- * @note
- * Copyright(C) NXP Semiconductors, 2012
- * All rights reserved.
- *
- * @par
- * Software that is described herein is for illustrative purposes only
- * which provides customers with programming information regarding the
- * LPC products.  This software is supplied "AS IS" without any warranties of
- * any kind, and NXP Semiconductors and its licensor disclaim any and
- * all warranties, express or implied, including all implied warranties of
- * merchantability, fitness for a particular purpose and non-infringement of
- * intellectual property rights.  NXP Semiconductors assumes no responsibility
- * or liability for the use of the software, conveys no license or rights under any
- * patent, copyright, mask work right, or any other intellectual property rights in
- * or to any products. NXP Semiconductors reserves the right to make changes
- * in the software without notification. NXP Semiconductors also makes no
- * representation or warranty that such application will be suitable for the
- * specified use without further testing or modification.
- *
- * @par
- * Permission to use, copy, modify, and distribute this software and its
- * documentation is hereby granted, under NXP Semiconductors' and its
- * licensor's relevant copyrights in the software, without fee, provided that it
- * is used in conjunction with NXP Semiconductors microcontrollers.  This
- * copyright, permission, and disclaimer notice must appear in all copies of
- * this code.
- */
+/**************************
+* 	UART Echo Example     *
+* 	Echoes out input      *
+***************************/
 
-#include "chip.h"
+#include "board.h"
+#include "util.h"
+#include "mcp2515.h"
 
-/*****************************************************************************
- * Private types/enumerations/variables
- ****************************************************************************/
+#define UART_BAUD 9600
+#define SPI_BAUD  115200
+#define CCAN_BAUD 500000
 
-#define TEST_CCAN_BAUD_RATE 500000
+#define MCP_BAUD_KHZ  500
+#define MCP_INP_CLK_MHZ 11
+#define MCP_SJW 1
+#define MCP_CS_GPIO 2
+#define MCP_CS_PIN 2
 
-#define LED_PIN 7
-#define LED_PIN2 0
+// ------------------------------------------------
+// Structs
 
-#define BUFFER_SIZE 8
+typedef enum {IDLE, CHARGING} MODE_T;
+typedef enum {REQ_IDLE, REQ_CHARGING, REQ_NONE} MODE_REQUEST_T;
 
-const uint32_t OscRateIn = 12000000;
+// ------------------------------------------------
+// Global Variables
 
-CCAN_MSG_OBJ_T msg_obj;
+volatile uint32_t msTicks; // Milliseconds 
 
-volatile uint32_t msTicks;
+static uint8_t Rx_Buf[8]; // UART Receive Software Buffer
 
-STATIC RINGBUFF_T rx_buffer;
+static char str[100]; // For use with String Manipulation
+static char int_str[100]; // For use within interrupts
+
+
+static CCAN_MSG_OBJ_T mcp_msg_obj;
+
+// On-Chip CCAN
+static CCAN_MSG_OBJ_T can_msg_obj;
+static RINGBUFF_T rx_buffer;
 CCAN_MSG_OBJ_T _rx_buffer[8];
 
+static MODE_T mode = IDLE;
+static MODE_REQUEST_T requested_mode = REQ_NONE;
 
-/*****************************************************************************
- * Public types/enumerations/variables
- ****************************************************************************/
-
-/*****************************************************************************
- * Private functions
- ****************************************************************************/
+// ------------------------------------------------
+// IRQs
 
 void SysTick_Handler(void) {
 	msTicks++;
 }
 
-static void Delay(uint32_t dlyTicks) {
-	uint32_t curTicks = msTicks;
-	while ((msTicks - curTicks) < dlyTicks);
-}
+void TIMER32_0_IRQHandler(void) {
+	if (Chip_TIMER_MatchPending(LPC_TIMER32_0, 0)) {
+		Chip_TIMER_ClearMatch(LPC_TIMER32_0, 0);
 
-void reverse(char str[], int length)
-{
-    int start = 0;
-    int end = length -1;
-    while (start < end)
-    {
-    	char t = *(str+start);
-    	*(str+start) = *(str+end);
-    	*(str+end) = t;
-        start++;
-        end--;
-    }
-}
- 
-// Implementation of itoa()
-char* itoa(int num, char* str, int base)
-{
-    int i = 0;
-    bool isNegative = false;
- 
-    /* Handle 0 explicitely, otherwise empty string is printed for 0 */
-    if (num == 0)
-    {
-        str[i++] = '0';
-        str[i] = '\0';
-        return str;
-    }
- 
-    // In standard itoa(), negative numbers are handled only with 
-    // base 10. Otherwise numbers are considered unsigned.
-    if (num < 0 && base == 10)
-    {
-        isNegative = true;
-        num = -num;
-    }
- 
-    // Process individual digits
-    while (num != 0)
-    {
-        int rem = num % base;
-        str[i++] = (rem > 9)? (rem-10) + 'a' : rem + '0';
-        num = num/base;
-    }
- 
-    // If number is negative, append '-'
-    if (isNegative)
-        str[i++] = '-';
- 
-    str[i] = '\0'; // Append string terminator
- 
-    // Reverse the string
-    reverse(str, i);
- 
-    return str;
-}
-
-
-static void GPIO_Config(void) {
-	Chip_GPIO_Init(LPC_GPIO);
-}
-
-static void LED_Config(void) {
-	Chip_GPIO_WriteDirBit(LPC_GPIO, 0, LED_PIN, true);
-	Chip_GPIO_WriteDirBit(LPC_GPIO, 3, LED_PIN2, true);
-}
-
-static void LED_On(void) {
-	Chip_GPIO_SetPinState(LPC_GPIO, 0, LED_PIN, true);
-}
-
-static void LED2_On(void) {
-	Chip_GPIO_SetPinState(LPC_GPIO, 3, LED_PIN2, true);
-}
-
-static void LED_Off(void) {
-	Chip_GPIO_SetPinState(LPC_GPIO, 0, LED_PIN, false);
-}
-
-static void LED2_Off(void) {
-	Chip_GPIO_SetPinState(LPC_GPIO, 3, LED_PIN2, false);
-}
-
-
-void baudrateCalculate(uint32_t baud_rate, uint32_t *can_api_timing_cfg)
-{
-	uint32_t pClk, div, quanta, segs, seg1, seg2, clk_per_bit, can_sjw;
-	Chip_Clock_EnablePeriphClock(SYSCTL_CLOCK_CAN);
-	pClk = Chip_Clock_GetMainClockRate();
-
-	clk_per_bit = pClk / baud_rate;
-
-	for (div = 0; div <= 15; div++) {
-		for (quanta = 1; quanta <= 32; quanta++) {
-			for (segs = 3; segs <= 17; segs++) {
-				if (clk_per_bit == (segs * quanta * (div + 1))) {
-					segs -= 3;
-					seg1 = segs / 2;
-					seg2 = segs - seg1;
-					can_sjw = seg1 > 3 ? 3 : seg1;
-					can_api_timing_cfg[0] = div;
-					can_api_timing_cfg[1] =
-						((quanta - 1) & 0x3F) | (can_sjw & 0x03) << 6 | (seg1 & 0x0F) << 8 | (seg2 & 0x07) << 12;
-					return;
-				}
-			}
-		}
+		MCP2515_SendBuffer(0);
 	}
+
 }
+
+// ------------------------------------------------
+// CAN Callbacks
 
 /*	CAN receive callback */
 /*	Function is executed by the Callback handler after
@@ -184,116 +69,156 @@ void baudrateCalculate(uint32_t baud_rate, uint32_t *can_api_timing_cfg)
 void CAN_rx(uint8_t msg_obj_num) {
 	// LED_On();
 	/* Determine which CAN message has been received */
-	msg_obj.msgobj = msg_obj_num;
+	can_msg_obj.msgobj = msg_obj_num;
 	/* Now load up the msg_obj structure with the CAN message */
-	LPC_CCAN_API->can_receive(&msg_obj);
+	LPC_CCAN_API->can_receive(&can_msg_obj);
 	if (msg_obj_num == 1) {
-		RingBuffer_Insert(&rx_buffer, &msg_obj);
+		RingBuffer_Insert(&rx_buffer, &can_msg_obj);
 	}
 }
 
 /*	CAN transmit callback */
 /*	Function is executed by the Callback handler after
     a CAN message has been transmitted */
-void CAN_tx(uint8_t msg_obj_num) {}
+void CAN_tx(uint8_t msg_obj_num) {
+	msg_obj_num++;
+}
 
 /*	CAN error callback */
 /*	Function is executed by the Callback handler after
     an error has occured on the CAN bus */
 void CAN_error(uint32_t error_info) {
-	LED2_On();
-	Chip_UART_SendBlocking(LPC_USART, "Error\n", 7);
+	DEBUG_Print("Error: ");
+	itoa(error_info, int_str, 10);
+	DEBUG_Print(int_str);
+	DEBUG_Print("\r\n");
 }
 
-/**
- * @brief	CCAN Interrupt Handler
- * @return	Nothing
- * @note	The CCAN interrupt handler must be provided by the user application.
- *	It's function is to call the isr() API located in the ROM
- */
-void CAN_IRQHandler(void) {
-	LPC_CCAN_API->isr();
-}
+// ------------------------------------------------
+// Main Program
 
-/*****************************************************************************
- * Public functions
- ****************************************************************************/
-
-/**
- * @brief	Main routine for CCAN_ROM example
- * @return	Nothing
- */
 int main(void)
 {
 
 	SystemCoreClockUpdate();
 
+	// ------------------------------------------------
+	// Systick Config
 	if (SysTick_Config (SystemCoreClock / 1000)) {
 		//Error
 		while(1);
 	}
 
-	GPIO_Config();
-	LED_Config();
+	// ------------------------------------------------
+	// Communication Init
+	Board_UART_Init(UART_BAUD);
+	Board_SPI_Init(SPI_BAUD);
+	Board_CCAN_Init(CCAN_BAUD, CAN_rx, CAN_tx, CAN_error);
 
-	//---------------
-	//UART
-	Chip_IOCON_PinMuxSet(LPC_IOCON, IOCON_PIO1_6, (IOCON_FUNC1 | IOCON_MODE_INACT));/* RXD */
-	Chip_IOCON_PinMuxSet(LPC_IOCON, IOCON_PIO1_7, (IOCON_FUNC1 | IOCON_MODE_INACT));/* TXD */
+	// ------------------------------------------------
+	// MCP2515 Init
+	MCP2515_Init(MCP_CS_GPIO, MCP_CS_PIN);
+	uint8_t i = MCP2515_SetBitRate(MCP_BAUD_KHZ, MCP_INP_CLK_MHZ, MCP_SJW);
+	itoa(i, str, 10);
+	if (i) {
+		DEBUG_Print("Baud Error: ");
+		DEBUG_Print(str);
+		DEBUG_Print("\r\n");
+	}
 
-	Chip_UART_Init(LPC_USART);
-	Chip_UART_SetBaud(LPC_USART, 9600);
-	Chip_UART_ConfigData(LPC_USART, (UART_LCR_WLEN8 | UART_LCR_SBS_1BIT | UART_LCR_PARITY_DIS));
-	Chip_UART_SetupFIFOS(LPC_USART, (UART_FCR_FIFO_EN | UART_FCR_TRG_LEV2));
-	Chip_UART_TXEnable(LPC_USART);
-	//---------------
-
-	char *startMessage = "Started Up\n";
-	Chip_UART_SendBlocking(LPC_USART, startMessage, 12);
-
-	//---------------
-	//Ring Buffer
-
-	RingBuffer_Init(&rx_buffer, _rx_buffer, 11, 8);
+	// ------------------------------------------------
+	// On-Chip CCAN Init
+	RingBuffer_Init(&rx_buffer, _rx_buffer, sizeof(CCAN_MSG_OBJ_T), 8);
 	RingBuffer_Flush(&rx_buffer);
 
-	//---------------
+	// ------------------------------------------------
+	// LED Init
+	Board_LED_Init();
+	Board_LED_On();
 
-	uint32_t CanApiClkInitTable[2];
-	/* Publish CAN Callback Functions */
-	CCAN_CALLBACKS_T callbacks = {
-		CAN_rx,
-		CAN_tx,
-		CAN_error,
-		NULL,
-		NULL,
-		NULL,
-		NULL,
-		NULL,
-	};
-	baudrateCalculate(TEST_CCAN_BAUD_RATE, CanApiClkInitTable);
+	// ------------------------------------------------
+	// Timer 32_0 Init
+	Chip_TIMER_Init(LPC_TIMER32_0);
+	Chip_TIMER_Reset(LPC_TIMER32_0);
+	Chip_TIMER_MatchEnableInt(LPC_TIMER32_0, 0);
+	Chip_TIMER_SetMatch(LPC_TIMER32_0, 0, SystemCoreClock / 1);
+	Chip_TIMER_ResetOnMatchEnable(LPC_TIMER32_0, 0);
 
-	LPC_CCAN_API->init_can(&CanApiClkInitTable[0], TRUE);
-	/* Configure the CAN callback functions */
-	LPC_CCAN_API->config_calb(&callbacks);
-	/* Enable the CAN Interrupt */
-	NVIC_EnableIRQ(CAN_IRQn);
+	// Chip_TIMER_Enable(LPC_TIMER32_0);
 
-	/* Configure message object 1 to receive all 11-bit messages */
-	msg_obj.msgobj = 1;
-	msg_obj.mode_id = 0x000;
-	msg_obj.mask = 0x000;
-	LPC_CCAN_API->config_rxmsgobj(&msg_obj);
+	/* Enable timer interrupt */
+	NVIC_ClearPendingIRQ(TIMER_32_0_IRQn);
+	NVIC_EnableIRQ(TIMER_32_0_IRQn);
 
-	LED_Off();
-	LED2_Off();
+	// ------------------------------------------------
+	// Begin
+	DEBUG_Print("Started Up\r\n");
 
-	while (1) {
-		__WFI();	/* Go to Sleep */
+	MCP2515_BitModify(RXB0CTRL, RXM_MASK, RXM_OFF);
+
+	mcp_msg_obj.mode_id = 0x600;
+	mcp_msg_obj.dlc = 6;
+	mcp_msg_obj.data[0] = 0x01;
+	mcp_msg_obj.data[1] = 0x02;
+	mcp_msg_obj.data[2] = 0x03;
+	mcp_msg_obj.data[3] = 0x04;
+	mcp_msg_obj.data[4] = 0x05;
+	mcp_msg_obj.data[5] = 0x06;
+
+	MCP2515_LoadBuffer(0, &mcp_msg_obj);
+
+	can_msg_obj.msgobj = 1;
+	can_msg_obj.mode_id = 0x000;
+	can_msg_obj.mask = 0x000;
+	LPC_CCAN_API->config_rxmsgobj(&can_msg_obj);
+
+	while(1) {
+		uint8_t count;
+		if ((count = Chip_UART_Read(LPC_USART, Rx_Buf, 8)) != 0) {
+			DEBUG_Write(Rx_Buf, count);
+			DEBUG_Print("\r\n");
+			switch (Rx_Buf[0]) {
+				case 't':
+					if (mode == CHARGING) {
+						requested_mode = REQ_IDLE;
+					} else {
+						requested_mode = REQ_CHARGING;
+					}
+					break;
+				case 'i':
+					DEBUG_Print("Mode is: ");
+					if (mode == CHARGING) {
+						DEBUG_Print("CHARGING\r\n");
+					} else {
+						DEBUG_Print("IDLE\r\n");
+					}
+					break;
+			}
+		}
+
+		if (requested_mode != REQ_NONE) {
+			if (requested_mode == REQ_IDLE) {
+				mode = IDLE;
+				Chip_TIMER_Disable(LPC_TIMER32_0);
+			} else if (requested_mode == REQ_CHARGING) {
+				mode = CHARGING;
+				Chip_TIMER_SetMatch(LPC_TIMER32_0, 0, SystemCoreClock / 10); // 100ms
+				Chip_TIMER_Enable(LPC_TIMER32_0);
+			}
+
+			requested_mode = REQ_NONE;
+		}
+
 		if (!RingBuffer_IsEmpty(&rx_buffer)) {
 			CCAN_MSG_OBJ_T temp_msg;
 			RingBuffer_Pop(&rx_buffer, &temp_msg);
-			Chip_UART_SendBlocking(LPC_USART, "Received Message\n", 18);
+			DEBUG_Print("Received On-Chip CAN. ID: 0x");
+			itoa(temp_msg.mode_id, str, 16);
+			DEBUG_Print(str);
+			DEBUG_Print("\r\n");
 		}	
+
 	}
+
+	return 0;
 }

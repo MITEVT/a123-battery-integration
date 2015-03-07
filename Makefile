@@ -70,7 +70,7 @@ AS_DEFS = -D__STARTUP_CLEAR_BSS -D__START=main -DRAM_MODE=1
 
 # include directories (absolute or relative paths to additional folders with
 # headers, current folder is always included)
-INC_DIRS_CROSS = ../lpc11cx4-io/lpc_chip_11cxx_lib/inc
+INC_DIRS_CROSS = ../lpc11cx4-io/lpc_chip_11cxx_lib/inc ../lpc11cx4-io/evt_lib/inc
 
 INC_DIRS_TEST = src test $(UNITY_BASE)/src $(UNITY_BASE)/extras/fixture/src
 
@@ -84,7 +84,7 @@ LIBS =
 
 # additional directories with source files (absolute or relative paths to
 # folders with source files, current folder is always included)
-SRCS_DIRS = ../lpc11cx4-io/lpc_chip_11cxx_lib/src src/
+SRCS_DIRS = ../lpc11cx4-io/lpc_chip_11cxx_lib/src ../lpc11cx4-io/evt_lib/src src/
 
 # extension of C++ files
 CXX_EXT = cpp
@@ -385,8 +385,8 @@ make_test_output_dir :
 # Write to flash of chip
 #-----------------------------------------------------------------------------#
 
-writeflash: $(HEX)
-	 @lpc21isp -NXPARM $^ $(COMPORT) $(BAUDRATE) $(CLOCK_OSC)
+writeflash: all
+	 @lpc21isp -NXPARM $(HEX) $(COMPORT) $(BAUDRATE) $(CLOCK_OSC)
 
 #=============================================================================#
 # make clean
@@ -408,7 +408,7 @@ endif
 # global exports
 #=============================================================================#
 
-.PHONY: all clean dependents
+.PHONY: all clean dependents writeflash
 
 .SECONDARY:
 
