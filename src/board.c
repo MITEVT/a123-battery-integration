@@ -91,7 +91,7 @@ void Board_CCAN_Init(uint32_t baudRateHz, void (*CAN_rx)(uint8_t), void (*CAN_tx
 
 void Board_LED_Init(void) {
 	Chip_GPIO_Init(LPC_GPIO);
-	Chip_GPIO_WriteDirBit(LPC_GPIO, LED1_GPIO, LED1_PIN, true);
+	Chip_GPIO_SetPinDIROutput(LPC_GPIO, LED1_GPIO, LED1_PIN);
 }
 
 void Board_LED_On(void) {
@@ -101,3 +101,14 @@ void Board_LED_On(void) {
 void Board_LED_Off(void) {
 	Chip_GPIO_SetPinState(LPC_GPIO, LED1_GPIO, LED1_PIN, false);
 }
+
+void Board_Switch_Init(void) {
+	Chip_GPIO_Init(LPC_GPIO);
+	Chip_GPIO_SetPinDIRInput(LPC_GPIO, SWITCH_GPIO, SWITCH_PIN);
+}
+
+bool Board_Switch_Read(void) {
+	return Chip_GPIO_GetPinState(LPC_GPIO, SWITCH_GPIO, SWITCH_PIN);
+
+}
+

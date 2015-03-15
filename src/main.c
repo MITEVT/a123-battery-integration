@@ -6,9 +6,11 @@
 #include "board.h"
 #include "util.h"
 #include "mcp2515.h"
+#include "brusa.h"
+#include "a123mbb.h"
 
 #define UART_BAUD 9600
-#define SPI_BAUD  115200
+#define SPI_BAUD  500000
 #define CCAN_BAUD 500000
 
 #define MCP_BAUD_KHZ  500
@@ -17,11 +19,25 @@
 #define MCP_CS_GPIO 2
 #define MCP_CS_PIN 2
 
+#define MODULE_COUNT 1
+#define CELL_SERIES 22
+#define CELL_PARALLEL 3
+#define CELL_COUNT MODULE_COUNT * CELL_SERIES
+#define NODE_COUNT MODULE_COUNT * 2
+
 // ------------------------------------------------
-// Structs
+// Structs and Enum
 
 typedef enum {IDLE, CHARGING} MODE_T;
 typedef enum {REQ_IDLE, REQ_CHARGING, REQ_NONE} MODE_REQUEST_T;
+
+typedef struct {
+	uint32_t minCellV;
+	uint8_t  minCellNode;
+	uint32_t maxCellV;
+	uint8_t  maxCellNode;
+	uint32_t averageCellV;
+} Total_Cell_State;
 
 // ------------------------------------------------
 // Global Variables
@@ -35,11 +51,23 @@ static char int_str[100]; // For use within interrupts
 
 
 static CCAN_MSG_OBJ_T mcp_msg_obj;
+static NLG5_CTL_T brusa_control;
+static NLG5_STATUS_T brusa_status;
+static NLG5_ACT_I_T brusa_actual_1;
+static NLG5_ACT_II_T brusa_actual_2;
+static NLG5_TEMP_T brusa_temp;
+static uint32_t brusa_status_count = 0;
+static uint32_t brusa_actual_1_count = 0;
+static uint32_t brusa_actual_2_count = 0;
+static uint32_t brusa_temp_count = 0;
 
 // On-Chip CCAN
 static CCAN_MSG_OBJ_T can_msg_obj;
 static RINGBUFF_T rx_buffer;
-CCAN_MSG_OBJ_T _rx_buffer[8];
+static CCAN_MSG_OBJ_T _rx_buffer[8];
+
+static MBB_CMD_T mbb_cmd;
+static MBB_STD_T mbb_std;
 
 static MODE_T mode = IDLE;
 static MODE_REQUEST_T requested_mode = REQ_NONE;
@@ -55,6 +83,8 @@ void TIMER32_0_IRQHandler(void) {
 	if (Chip_TIMER_MatchPending(LPC_TIMER32_0, 0)) {
 		Chip_TIMER_ClearMatch(LPC_TIMER32_0, 0);
 
+		Brusa_MakeCTL(&brusa_control, &mcp_msg_obj);
+		MCP2515_LoadBuffer(0, &mcp_msg_obj);
 		MCP2515_SendBuffer(0);
 	}
 
@@ -102,6 +132,8 @@ int main(void)
 
 	SystemCoreClockUpdate();
 
+	msTicks = 0; 
+
 	// ------------------------------------------------
 	// Systick Config
 	if (SysTick_Config (SystemCoreClock / 1000)) {
@@ -132,9 +164,10 @@ int main(void)
 	RingBuffer_Flush(&rx_buffer);
 
 	// ------------------------------------------------
-	// LED Init
+	// Board Periph Init
 	Board_LED_Init();
 	Board_LED_On();
+	Board_Switch_Init();
 
 	// ------------------------------------------------
 	// Timer 32_0 Init
@@ -152,6 +185,25 @@ int main(void)
 
 	// ------------------------------------------------
 	// Begin
+
+	brusa_status_count = 0;
+	brusa_actual_1_count = 0;
+	brusa_actual_2_count = 0;
+	brusa_temp_count = 0;
+
+	brusa_control.enable = 0;
+	brusa_control.clear_error = 0;
+	brusa_control.ventilation_request = 0;
+	brusa_control.max_mains_current = 0;
+	brusa_control.output_voltage = 0;
+	brusa_control.output_current = 0;
+
+	brusa_status.mains_type = 0;
+	brusa_actual_1.mains_voltage = 0;
+
+	mode = IDLE;
+	requested_mode = REQ_NONE;
+
 	DEBUG_Print("Started Up\r\n");
 
 	MCP2515_BitModify(RXB0CTRL, RXM_MASK, RXM_OFF);
@@ -172,53 +224,216 @@ int main(void)
 	can_msg_obj.mask = 0x000;
 	LPC_CCAN_API->config_rxmsgobj(&can_msg_obj);
 
+	// mbb_cmd.request_type = 1;
+	// mbb_cmd.request_id = 5;
+	// mbb_cmd.balance_target = BCM_BALANCE_OFF;
+
 	while(1) {
-		uint8_t count;
-		if ((count = Chip_UART_Read(LPC_USART, Rx_Buf, 8)) != 0) {
-			DEBUG_Write(Rx_Buf, count);
-			DEBUG_Print("\r\n");
-			switch (Rx_Buf[0]) {
-				case 't':
-					if (mode == CHARGING) {
-						requested_mode = REQ_IDLE;
-					} else {
-						requested_mode = REQ_CHARGING;
-					}
-					break;
-				case 'i':
-					DEBUG_Print("Mode is: ");
-					if (mode == CHARGING) {
-						DEBUG_Print("CHARGING\r\n");
-					} else {
-						DEBUG_Print("IDLE\r\n");
-					}
-					break;
+
+		if (!Board_Switch_Read()) {
+			if (mode != CHARGING) {
+				requested_mode = REQ_CHARGING;
+			}
+		} else {
+			if (mode == CHARGING) {
+				requested_mode = REQ_IDLE;
 			}
 		}
 
 		if (requested_mode != REQ_NONE) {
-			if (requested_mode == REQ_IDLE) {
-				mode = IDLE;
-				Chip_TIMER_Disable(LPC_TIMER32_0);
-			} else if (requested_mode == REQ_CHARGING) {
-				mode = CHARGING;
-				Chip_TIMER_SetMatch(LPC_TIMER32_0, 0, SystemCoreClock / 10); // 100ms
-				Chip_TIMER_Enable(LPC_TIMER32_0);
-			}
+			if (requested_mode == REQ_CHARGING) {
+				// Is able to charge?
+				if (mode == IDLE) {
+					// Begin charging
+					// Close Contacters
 
-			requested_mode = REQ_NONE;
+					// Set Mode to Charging
+					mode = CHARGING;
+					DEBUG_Print("Charging\r\n");
+					requested_mode = REQ_NONE;
+				}
+			} else if (requested_mode == REQ_IDLE) {
+				// Is able to go to idle?
+				// Open contactors
+				// Go to idle
+				mode = IDLE;
+				DEBUG_Print("Idle\r\n");
+				requested_mode = REQ_NONE;
+			}
 		}
 
-		if (!RingBuffer_IsEmpty(&rx_buffer)) {
-			CCAN_MSG_OBJ_T temp_msg;
-			RingBuffer_Pop(&rx_buffer, &temp_msg);
-			DEBUG_Print("Received On-Chip CAN. ID: 0x");
-			itoa(temp_msg.mode_id, str, 16);
-			DEBUG_Print(str);
-			DEBUG_Print("\r\n");
-		}	
+		if (mode == IDLE) {
+			// Do nothing?
+		} else if (mode == CHARGING) {
+			// Send BCM_CMD
+			mbb_cmd.request_type = 0;
+			mbb_cmd.request_id = 5;
+			mbb_cmd.balance_target = BCM_BALANCE_OFF;
+
+			can_msg_obj.msgobj = 2;
+			MBB_MakeCMD(&mbb_cmd, &can_msg_obj);
+			LPC_CCAN_API->can_transmit(&can_msg_obj);
+			// Update Battery Status
+			uint8_t i = 0;
+			while(i < NODE_COUNT) {
+				if (!RingBuffer_IsEmpty(&rx_buffer)) {
+					CCAN_MSG_OBJ_T temp_msg;
+					RingBuffer_Pop(&rx_buffer, &temp_msg);
+					DEBUG_Print("Received On-Chip CAN. ID: 0x");
+					itoa(temp_msg.mode_id, str, 16);
+					DEBUG_Print(str);
+					DEBUG_Print("\r\n");
+					if ((temp_msg.mode_id & MBB_STD_MASK) == MBB_STD) {
+						MBB_DecodeStd(&mbb_std, &temp_msg);
+						DEBUG_Print("Response ID: ");
+						itoa(mbb_std.response_id, str, 10);
+						DEBUG_Print(str);
+						DEBUG_Print("\r\n");
+						DEBUG_Print("Minimum Voltage: ");
+						itoa(mbb_std.mod_v_min * .5 + 1000, str, 10);
+						DEBUG_Print(str);
+						DEBUG_Print("\r\n");
+						DEBUG_Print("Max Voltage: ");
+						itoa(mbb_std.mod_v_max * .5 + 1000, str, 10);
+						DEBUG_Print(str);
+						DEBUG_Print("\r\n");
+						DEBUG_Print("Average Voltage: ");
+						itoa(mbb_std.mod_v_avg * .5 + 1000, str, 10);
+						DEBUG_Print(str);
+						DEBUG_Print("\r\n");
+					}
+					i++;
+				}	
+			}
+			// Do checks
+			// Tell Brusa to do appropriate thing
+		}
+
+		// uint8_t count;
+		// if ((count = Chip_UART_Read(LPC_USART, Rx_Buf, 8)) != 0) {
+		// 	DEBUG_Write(Rx_Buf, count);
+		// 	DEBUG_Print("\r\n");
+		// 	switch (Rx_Buf[0]) {
+		// 		case 't':
+		// 			if (mode == CHARGING) {
+		// 				requested_mode = REQ_IDLE;
+		// 			} else {
+		// 				requested_mode = REQ_CHARGING;
+		// 			}
+		// 			break;
+		// 		case 'i':
+		// 			DEBUG_Print("Mode is: ");
+		// 			if (mode == CHARGING) {
+		// 				DEBUG_Print("CHARGING\r\n");
+		// 			} else {
+		// 				DEBUG_Print("IDLE\r\n");
+		// 			}
+		// 			break;
+		// 		case 's':
+		// 			DEBUG_Print("Status Count: ");
+		// 			itoa(brusa_status_count, str, 10);
+		// 			DEBUG_Print(str);
+		// 			DEBUG_Print(" Act_1 Count: ");
+		// 			itoa(brusa_actual_1_count, str, 10);
+		// 			DEBUG_Print(str);
+		// 			DEBUG_Print(" Act_2 Count: ");
+		// 			itoa(brusa_actual_2_count, str, 10);
+		// 			DEBUG_Print(str);
+		// 			DEBUG_Print("\r\n");
+					
+		// 			DEBUG_Print("Actual Mains Voltage: 0x");
+		// 			itoa(brusa_actual_1.mains_voltage, str, 16);
+		// 			DEBUG_Print(str);
+		// 			DEBUG_Print("\r\n");
+
+		// 			DEBUG_Print("Mains type: ");
+		// 			itoa(brusa_status.mains_type, str, 10);
+		// 			DEBUG_Print(str);
+		// 			DEBUG_Print("\r\n");
+
+		// 			DEBUG_Print("Temp: 0x");
+		// 			itoa(brusa_temp.power_temp, str, 16);
+		// 			DEBUG_Print(str);
+		// 			DEBUG_Print("\r\n");
+		// 			break;
+		// 		case 'a':
+		// 			can_msg_obj.msgobj = 2;
+		// 			MBB_MakeCMD(&mbb_cmd, &can_msg_obj);
+		// 			LPC_CCAN_API->can_transmit(&can_msg_obj);
+		// 			break;
+
+		// 	}
+		// }
+
+		// if (requested_mode != REQ_NONE) {
+		// 	if (requested_mode == REQ_IDLE) {
+		// 		mode = IDLE;
+		// 		Chip_TIMER_Disable(LPC_TIMER32_0);
+		// 	} else if (requested_mode == REQ_CHARGING) {
+		// 		mode = CHARGING;
+		// 		Chip_TIMER_SetMatch(LPC_TIMER32_0, 0, SystemCoreClock / 10); // 100ms
+		// 		Chip_TIMER_Enable(LPC_TIMER32_0);
+		// 	}
+
+		// 	requested_mode = REQ_NONE;
+		// }
+
+		// uint8_t tmp = 0;
+		// MCP2515_Read(CANINTF, &tmp, 1);
+		// if (tmp & 1) { //Receive buffer 0 full
+		// 	// DEBUG_Print("Received Message\r\n");
+		// 	MCP2515_ReadBuffer(&mcp_msg_obj, 0);
+		// 	if (mcp_msg_obj.mode_id == NLG5_STATUS) {
+		// 		Brusa_DecodeStatus(&brusa_status, &mcp_msg_obj);
+		// 		brusa_status_count++;
+		// 	} else if (mcp_msg_obj.mode_id == NLG5_ACT_I) {
+		// 		Brusa_DecodeActI(&brusa_actual_1, &mcp_msg_obj);
+		// 		brusa_actual_1_count++;
+		// 	} else if (mcp_msg_obj.mode_id == NLG5_ACT_II) {
+		// 		Brusa_DecodeActII(&brusa_actual_2, &mcp_msg_obj);
+		// 		brusa_actual_2_count++;
+		// 	} else if (mcp_msg_obj.mode_id == NLG5_TEMP) {
+		// 		Brusa_DecodeTemp(&brusa_temp, &mcp_msg_obj);
+		// 		brusa_temp_count++;
+		// 	} else {
+		// 		DEBUG_Print("Received unknown message of ID: 0x");
+		// 		itoa(mcp_msg_obj.mode_id, str, 16);
+		// 		DEBUG_Print(str);
+		// 		DEBUG_Print("\r\n");
+		// 	}
+		// }
+
+
+		// if (!RingBuffer_IsEmpty(&rx_buffer)) {
+		// 	CCAN_MSG_OBJ_T temp_msg;
+		// 	RingBuffer_Pop(&rx_buffer, &temp_msg);
+		// 	DEBUG_Print("Received On-Chip CAN. ID: 0x");
+		// 	itoa(temp_msg.mode_id, str, 16);
+		// 	DEBUG_Print(str);
+		// 	DEBUG_Print("\r\n");
+		// 	if ((temp_msg.mode_id & MBB_STD_MASK) == MBB_STD) {
+		// 		MBB_DecodeStd(&mbb_std, &temp_msg);
+		// 		DEBUG_Print("Response ID: ");
+		// 		itoa(mbb_std.response_id, str, 10);
+		// 		DEBUG_Print(str);
+		// 		DEBUG_Print("\r\n");
+		// 		DEBUG_Print("Minimum Voltage: ");
+		// 		itoa(mbb_std.mod_v_min * .5 + 1000, str, 10);
+		// 		DEBUG_Print(str);
+		// 		DEBUG_Print("\r\n");
+		// 		DEBUG_Print("Max Voltage: ");
+		// 		itoa(mbb_std.mod_v_max * .5 + 1000, str, 10);
+		// 		DEBUG_Print(str);
+		// 		DEBUG_Print("\r\n");
+		// 		DEBUG_Print("Average Voltage: ");
+		// 		itoa(mbb_std.mod_v_avg * .5 + 1000, str, 10);
+		// 		DEBUG_Print(str);
+		// 		DEBUG_Print("\r\n");
+		// 	}
+		// }	
 
 	}
 
 	return 0;
 }
+

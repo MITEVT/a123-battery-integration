@@ -4,6 +4,9 @@
 #define LED1_GPIO 2
 #define LED1_PIN 10
 
+#define SWITCH_GPIO 0
+#define SWITCH_PIN  1
+
 #define DEBUG_ENABLE
 
 #ifdef DEBUG_ENABLE
@@ -24,3 +27,6 @@ void Board_CCAN_Init(uint32_t baudRateHz, void (*CAN_rx)(uint8_t), void (*CAN_tx
 void Board_LED_Init(void);
 void Board_LED_On(void);
 void Board_LED_Off(void);
+
+void Board_Switch_Init(void);
+bool Board_Switch_Read(void);
