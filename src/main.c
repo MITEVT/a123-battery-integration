@@ -39,6 +39,7 @@ typedef struct {
 	uint32_t pack_v_max;
 	uint8_t  pack_node_max;
 	uint32_t pack_v_avg;
+	uint32_t messagesReceived;
 } PACK_STATE;
 
 // ------------------------------------------------
@@ -84,6 +85,41 @@ void TIMER32_0_IRQHandler(void) {
 		Brusa_MakeCTL(&brusa_control, &mcp_msg_obj);
 		MCP2515_LoadBuffer(0, &mcp_msg_obj);
 		MCP2515_SendBuffer(0);
+	}
+}
+
+// Used for sending BCM_CMD and checking for available data
+void TIMER32_1_IRQHandler(void) {
+
+	// Update Battery Status
+	if (!RingBuffer_IsEmpty(&rx_buffer)) {
+		CCAN_MSG_OBJ_T temp_msg;
+		RingBuffer_Pop(&rx_buffer, &temp_msg);
+		uint8_t mod_id = temp_msg.mode_id * 0xFF;
+		if ((temp_msg.mode_id & MBB_STD_MASK) == MBB_STD) {
+			MBB_DecodeStd(&mbb_std, &temp_msg);
+			if (mbb_std.mod_v_min < pack_state.pack_v_min) {
+				pack_state.pack_v_min = mbb_std.mod_v_min;
+				pack_state.pack_node_min = mod_id;
+			}
+
+			if (mbb_std.mod_v_max > pack_state.pack_v_max) {
+				pack_state.pack_v_max = mbb_std.mod_v_max;
+				pack_state.pack_node_max = mod_id;
+			}
+			pack_state.messagesReceived++;
+			pack_state.pack_v_avg = (pack_state.pack_v_avg * (pack_state.messagesReceived - 1) + mbb_std.mod_v_avg) / pack_state.messagesReceived;
+		}
+	} else {
+		// Send BCM_CMD
+		mbb_cmd.request_type = 0;
+		mbb_cmd.request_id = 5; 		// Should I change this?
+		mbb_cmd.balance_target = BCM_BALANCE_OFF;
+
+		can_msg_obj.msgobj = 2;
+		MBB_MakeCMD(&mbb_cmd, &can_msg_obj);
+		LPC_CCAN_API->can_transmit(&can_msg_obj);	
+
 	}
 }
 
@@ -181,6 +217,28 @@ void Init_Board(void) {
 	Board_CCAN_Init(CCAN_BAUD, CAN_rx, CAN_tx, CAN_error);
 }
 
+void Init_Globals(void) {
+	brusa_control.enable = 0;
+	brusa_control.clear_error = 0;
+	brusa_control.ventilation_request = 0;
+	brusa_control.max_mains_current = 0;
+	brusa_control.output_voltage = 0;
+	brusa_control.output_current = 0;
+
+	brusa_status.mains_type = 0;
+	brusa_actual_1.mains_voltage = 0;
+
+	mode = IDLE;
+	requested_mode = REQ_NONE;
+
+	pack_state.pack_v_min = 0xFFFFFFFF;
+	pack_state.pack_node_min = 0;
+	pack_state.pack_v_max = 0;
+	pack_state.pack_node_max = 0;
+	pack_state.pack_v_avg = 0;
+	pack_state.messagesReceived = 0;
+}
+
 void Init_CAN(void) {
 	// ------------------------------------------------
 	// MCP2515 Init
@@ -221,6 +279,20 @@ void Init_Timers(void) {
 	/* Enable timer interrupt */
 	NVIC_ClearPendingIRQ(TIMER_32_0_IRQn);
 	NVIC_EnableIRQ(TIMER_32_0_IRQn);
+
+	// ------------------------------------------------
+	// Timer 32_0 Init
+	Chip_TIMER_Init(LPC_TIMER32_1);
+	Chip_TIMER_Reset(LPC_TIMER32_1);
+	Chip_TIMER_MatchEnableInt(LPC_TIMER32_1, 0);
+	Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, SystemCoreClock / 1); 	// 1Hz
+	Chip_TIMER_ResetOnMatchEnable(LPC_TIMER32_1, 0);
+
+	/* Enable timer_32_1 interrupt */
+	NVIC_ClearPendingIRQ(TIMER_32_1_IRQn);
+	NVIC_EnableIRQ(TIMER_32_1_IRQn);
+
+	Chip_TIMER_Enable(LPC_TIMER32_1);
 }
 
 // ------------------------------------------------
@@ -231,30 +303,13 @@ int main(void)
 
 	Init_Core();
 	Init_Board();
+	Init_Globals();
 	Init_CAN();
 	Init_Timers();
 
 	// ------------------------------------------------
 	// Begin
 
-	brusa_control.enable = 0;
-	brusa_control.clear_error = 0;
-	brusa_control.ventilation_request = 0;
-	brusa_control.max_mains_current = 0;
-	brusa_control.output_voltage = 0;
-	brusa_control.output_current = 0;
-
-	brusa_status.mains_type = 0;
-	brusa_actual_1.mains_voltage = 0;
-
-	mode = IDLE;
-	requested_mode = REQ_NONE;
-
-	pack_state.pack_v_min = 0xFFFFFFFF;
-	pack_state.pack_node_min = 0;
-	pack_state.pack_v_max = 0;
-	pack_state.pack_node_max = 0;
-	pack_state.pack_v_avg = 0;
 
 	DEBUG_Print("Started Up\r\n");
 
@@ -297,6 +352,7 @@ int main(void)
 					charging_mode = CHRG_NONE;
 					DEBUG_Print("Charging\r\n");
 					requested_mode = REQ_NONE;
+
 				}
 			} else if (requested_mode == REQ_IDLE) {
 				// Is able to go to idle?
@@ -317,43 +373,11 @@ int main(void)
 		if (mode == IDLE) {
 			// Do nothing?
 		} else if (mode == CHARGING) {
-			// Send BCM_CMD
-			mbb_cmd.request_type = 0;
-			mbb_cmd.request_id = 5;
-			mbb_cmd.balance_target = BCM_BALANCE_OFF;
 
-			can_msg_obj.msgobj = 2;
-			MBB_MakeCMD(&mbb_cmd, &can_msg_obj);
-			LPC_CCAN_API->can_transmit(&can_msg_obj);
-			// Update Battery Status
-			uint8_t i = 0;
-			pack_state.pack_v_avg = 0;
-			while(i < NODE_COUNT) {
-				if (!RingBuffer_IsEmpty(&rx_buffer)) {
-					CCAN_MSG_OBJ_T temp_msg;
-					RingBuffer_Pop(&rx_buffer, &temp_msg);
-					uint8_t mod_id = temp_msg.mode_id * 0xFF;
-					if ((temp_msg.mode_id & MBB_STD_MASK) == MBB_STD) {
-						MBB_DecodeStd(&mbb_std, &temp_msg);
-						if (mbb_std.mod_v_min < pack_state.pack_v_min) {
-							pack_state.pack_v_min = mbb_std.mod_v_min;
-							pack_state.pack_node_min = mod_id;
-						}
-
-						if (mbb_std.mod_v_max > pack_state.pack_v_max) {
-							pack_state.pack_v_max = mbb_std.mod_v_max;
-							pack_state.pack_node_max = mod_id;
-						}
-
-						pack_state.pack_v_avg += mbb_std.mod_v_avg;
-					}
-					i++;
-				}	
-			}
-			pack_state.pack_v_avg /= NODE_COUNT;
 			// Do checks
 			if (pack_state.pack_v_min < MIN_CELL_V) {
 				// We're fucked. Crap out and yell at the battery owners
+
 			}
 
 			if (pack_state.pack_v_max > MAX_CELL_V) {
@@ -362,6 +386,7 @@ int main(void)
 			}
 
 			// Tell Brusa to do appropriate thing
+			
 		}
 
 		// uint8_t count;
@@ -395,11 +420,6 @@ int main(void)
 		// 			itoa(brusa_temp.power_temp, str, 16);
 		// 			DEBUG_Print(str);
 		// 			DEBUG_Print("\r\n");
-		// 			break;
-		// 		case 'a':
-		// 			can_msg_obj.msgobj = 2;
-		// 			MBB_MakeCMD(&mbb_cmd, &can_msg_obj);
-		// 			LPC_CCAN_API->can_transmit(&can_msg_obj);
 		// 			break;
 
 		// 	}
@@ -443,34 +463,6 @@ int main(void)
 		// 	}
 		// }
 
-
-		// if (!RingBuffer_IsEmpty(&rx_buffer)) {
-		// 	CCAN_MSG_OBJ_T temp_msg;
-		// 	RingBuffer_Pop(&rx_buffer, &temp_msg);
-		// 	DEBUG_Print("Received On-Chip CAN. ID: 0x");
-		// 	itoa(temp_msg.mode_id, str, 16);
-		// 	DEBUG_Print(str);
-		// 	DEBUG_Print("\r\n");
-		// 	if ((temp_msg.mode_id & MBB_STD_MASK) == MBB_STD) {
-		// 		MBB_DecodeStd(&mbb_std, &temp_msg);
-		// 		DEBUG_Print("Response ID: ");
-		// 		itoa(mbb_std.response_id, str, 10);
-		// 		DEBUG_Print(str);
-		// 		DEBUG_Print("\r\n");
-		// 		DEBUG_Print("Minimum Voltage: ");
-		// 		itoa(mbb_std.mod_v_min * .5 + 1000, str, 10);
-		// 		DEBUG_Print(str);
-		// 		DEBUG_Print("\r\n");
-		// 		DEBUG_Print("Max Voltage: ");
-		// 		itoa(mbb_std.mod_v_max * .5 + 1000, str, 10);
-		// 		DEBUG_Print(str);
-		// 		DEBUG_Print("\r\n");
-		// 		DEBUG_Print("Average Voltage: ");
-		// 		itoa(mbb_std.mod_v_avg * .5 + 1000, str, 10);
-		// 		DEBUG_Print(str);
-		// 		DEBUG_Print("\r\n");
-		// 	}
-		// }	
 
 	}
 
