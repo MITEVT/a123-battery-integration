@@ -24,6 +24,8 @@
 #define MAX_CELL_V 	mVolts2Num(4000) 		// Maximum Allowed Cell Voltage of 4.0V
 #define MIN_CELL_V  mVolts2Num(2700) 		// Minimum Allowed Cell Voltage of 2.7V
 
+#define ERROR_CONTACTOR 5
+
 // ------------------------------------------------
 // Structs and Enum
 
@@ -120,6 +122,35 @@ void CAN_error(uint32_t error_info) {
 }
 
 // ------------------------------------------------
+// Helper functions that don't belong in util because systick and printing
+
+void _delay_ms(uint32_t ms) {
+	uint32_t currTicks = msTicks;
+	while(msTicks - currTicks < ms) {
+
+	}
+}
+
+void _error(uint8_t errorNo, bool flashLED) {
+	DEBUG_Print("Error(");
+	itoa(errorNo, str, 10);
+	DEBUG_Print(str);
+	DEBUG_Print(")\r\n");
+
+	if (flashLED) {
+		uint8_t i;
+		for (i = 0; i < errorNo, i++) {
+			Board_LED_Off();
+			_delay_ms(800);
+			Board_LED_On();
+			_delay_ms(800);
+		}
+	}
+
+	Board_LED_Off();
+}
+
+// ------------------------------------------------
 // Init Functions
 
 void Init_Core(void) {
@@ -190,10 +221,6 @@ void Init_Timers(void) {
 	/* Enable timer interrupt */
 	NVIC_ClearPendingIRQ(TIMER_32_0_IRQn);
 	NVIC_EnableIRQ(TIMER_32_0_IRQn);
-}
-
-void Init_Globals(void) {
-
 }
 
 // ------------------------------------------------
