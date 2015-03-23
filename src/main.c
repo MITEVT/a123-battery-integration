@@ -175,7 +175,7 @@ void _error(uint8_t errorNo, bool flashLED) {
 
 	if (flashLED) {
 		uint8_t i;
-		for (i = 0; i < errorNo, i++) {
+		for (i = 0; i < errorNo; i++) {
 			Board_LED_Off();
 			_delay_ms(800);
 			Board_LED_On();
@@ -386,7 +386,7 @@ int main(void)
 			}
 
 			// Tell Brusa to do appropriate thing
-			
+
 		}
 
 		// uint8_t count;
