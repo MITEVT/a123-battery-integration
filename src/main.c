@@ -8,6 +8,8 @@
 #define SPI_BAUD  500000
 #define CCAN_BAUD 500000
 
+#define CCAN_BUF_SIZE 0x10
+
 #define MCP_BAUD_KHZ  500
 #define MCP_INP_CLK_MHZ 11
 #define MCP_SJW 1
@@ -26,11 +28,19 @@
 
 #define ERROR_CONTACTOR 5
 
+#define BCM_POLL_IDLE_FREQ 1
+#define BCM_POLL_CHARGING_FREQ 100
+#define BCM_POLL_DRAINING_FREQ 100
+
+#define Hertz2Ticks(freq) SystemCoreClock / freq
+
+#define UpdateBCMTimerFreq(freq) (Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, Hertz2Ticks(freq)))
+
 // ------------------------------------------------
 // Structs and Enum
 
 typedef enum {IDLE, CHARGING, DRAINING} MODE_T;
-typedef enum {REQ_IDLE, REQ_CHARGING, REQ_NONE} MODE_REQUEST_T;
+typedef enum {REQ_IDLE, REQ_CHARGING, REQ_DRAINING, REQ_NONE} MODE_REQUEST_T;
 typedef enum {CHRG_BALANCING, CHRG_CHARGING, CHRG_NONE} CHARGING_MODE_T;
 
 typedef struct {
@@ -60,7 +70,7 @@ static NLG5_TEMP_T brusa_temp;
 // On-Chip CCAN
 static CCAN_MSG_OBJ_T can_msg_obj;
 static RINGBUFF_T rx_buffer;
-static CCAN_MSG_OBJ_T _rx_buffer[8];
+static CCAN_MSG_OBJ_T _rx_buffer[CCAN_BUF_SIZE];
 
 static MBB_CMD_T mbb_cmd;
 static MBB_STD_T mbb_std;
@@ -271,7 +281,7 @@ void Init_Timers(void) {
 	Chip_TIMER_Init(LPC_TIMER32_0);
 	Chip_TIMER_Reset(LPC_TIMER32_0);
 	Chip_TIMER_MatchEnableInt(LPC_TIMER32_0, 0);
-	Chip_TIMER_SetMatch(LPC_TIMER32_0, 0, SystemCoreClock / 1);
+	Chip_TIMER_SetMatch(LPC_TIMER32_0, 0, Hertz2Ticks(1));
 	Chip_TIMER_ResetOnMatchEnable(LPC_TIMER32_0, 0);
 
 	// Chip_TIMER_Enable(LPC_TIMER32_0);
@@ -285,7 +295,7 @@ void Init_Timers(void) {
 	Chip_TIMER_Init(LPC_TIMER32_1);
 	Chip_TIMER_Reset(LPC_TIMER32_1);
 	Chip_TIMER_MatchEnableInt(LPC_TIMER32_1, 0);
-	Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, SystemCoreClock / 1); 	// 1Hz
+	Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, Hertz2Ticks(BCM_POLL_IDLE_FREQ));
 	Chip_TIMER_ResetOnMatchEnable(LPC_TIMER32_1, 0);
 
 	/* Enable timer_32_1 interrupt */
@@ -353,6 +363,7 @@ int main(void)
 					DEBUG_Print("Charging\r\n");
 					requested_mode = REQ_NONE;
 
+					UpdateBCMTimerFreq(BCM_POLL_CHARGING_FREQ);
 				}
 			} else if (requested_mode == REQ_IDLE) {
 				// Is able to go to idle?
@@ -367,6 +378,23 @@ int main(void)
 				charging_mode = CHRG_NONE;
 				DEBUG_Print("Idle\r\n");
 				requested_mode = REQ_NONE;
+
+				UpdateBCMTimerFreq(BCM_POLL_IDLE_FREQ);
+			} else if (requested_mode == REQ_DRAINING) {
+				// Able to drain?
+
+				// Close Contactors
+				if (!Board_Contactors_On()) {
+						// FUCK We can't turn the contactors on
+						DEBUG_Print("Unable to open contactors. Returning to IDLE Mode.\r\n");
+				}
+
+				mode = DRAINING;
+				charging_mode = CHRG_NONE;
+				DEBUG_Print("Ready to drain\r\n");
+				requested_mode = REQ_NONE;
+
+				UpdateBCMTimerFreq(BCM_POLL_DRAINING_FREQ);
 			}
 		}
 
