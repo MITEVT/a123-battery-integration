@@ -7,6 +7,13 @@
 #define SWITCH_GPIO 0
 #define SWITCH_PIN  1
 
+#define CONTACTOR_P_GPIO 	2
+#define CONTACTOR_P_PIN  	6
+#define CONTACTOR_N_GPIO 	2
+#define CONTACTOR_N_PIN  	7
+#define CONTACTOR_PRE_GPIO 	2
+#define CONTACTOR_PRE_PIN 	10
+
 #define DEBUG_ENABLE
 
 #ifdef DEBUG_ENABLE
@@ -30,3 +37,7 @@ void Board_LED_Off(void);
 
 void Board_Switch_Init(void);
 bool Board_Switch_Read(void);
+
+void Board_Contactors_Init(void);
+bool Board_Contactors_On(void);
+bool Board_Contactors_Off(void);

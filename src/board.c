@@ -95,11 +95,11 @@ void Board_LED_Init(void) {
 }
 
 void Board_LED_On(void) {
-	Chip_GPIO_SetPinState(LPC_GPIO, LED1_GPIO, LED1_PIN, true);
+	Chip_GPIO_SetPinOutHigh(LPC_GPIO, LED1_GPIO, LED1_PIN);
 }
 
 void Board_LED_Off(void) {
-	Chip_GPIO_SetPinState(LPC_GPIO, LED1_GPIO, LED1_PIN, false);
+	Chip_GPIO_SetPinOutLow(LPC_GPIO, LED1_GPIO, LED1_PIN);
 }
 
 void Board_Switch_Init(void) {
@@ -110,5 +110,32 @@ void Board_Switch_Init(void) {
 bool Board_Switch_Read(void) {
 	return Chip_GPIO_GetPinState(LPC_GPIO, SWITCH_GPIO, SWITCH_PIN);
 
+}
+
+void Board_Contactors_Init(void) {
+	Chip_GPIO_Init(LPC_GPIO);
+	Chip_GPIO_SetPinDIROutput(LPC_GPIO, CONTACTOR_N_GPIO, CONTACTOR_N_PIN);
+	Chip_GPIO_SetPinDIROutput(LPC_GPIO, CONTACTOR_P_GPIO, CONTACTOR_P_PIN);
+	Chip_GPIO_SetPinDIROutput(LPC_GPIO, CONTACTOR_PRE_GPIO, CONTACTOR_PRE_PIN);
+}
+
+bool Board_Contactors_On(void) {
+	Chip_GPIO_SetPinOutHigh(LPC_GPIO, CONTACTOR_PRE_GPIO, CONTACTOR_PRE_PIN);
+	//delay
+	Chip_GPIO_SetPinOutHigh(LPC_GPIO, CONTACTOR_N_GPIO, CONTACTOR_N_PIN);
+	Chip_GPIO_SetPinOutHigh(LPC_GPIO, CONTACTOR_P_GPIO, CONTACTOR_P_PIN);
+	//delay
+	Chip_GPIO_SetPinOutLow(LPC_GPIO, CONTACTOR_PRE_GPIO, CONTACTOR_PRE_PIN);
+
+	// Did they actually turn on?
+	return true;
+}
+
+bool Board_Contactors_Off(void) {
+	Chip_GPIO_SetPinOutLow(LPC_GPIO, CONTACTOR_P_GPIO, CONTACTOR_P_PIN);
+	Chip_GPIO_SetPinOutLow(LPC_GPIO, CONTACTOR_N_GPIO, CONTACTOR_N_PIN);
+
+	// Did they actually turn of
+	return true;
 }
 
