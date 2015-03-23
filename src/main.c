@@ -1,8 +1,3 @@
-/**************************
-* 	UART Echo Example     *
-* 	Echoes out input      *
-***************************/
-
 #include "board.h"
 #include "util.h"
 #include "mcp2515.h"
@@ -23,7 +18,11 @@
 #define CELL_SERIES 22
 #define CELL_PARALLEL 3
 #define CELL_COUNT MODULE_COUNT * CELL_SERIES
-#define NODE_COUNT MODULE_COUNT * 2
+#define NODES_PER_MODULE 2
+#define NODE_COUNT MODULE_COUNT * NODES_PER_MODULE
+
+#define MAX_CELL_V 	mVolts2Num(4000) 		// Maximum Allowed Cell Voltage of 4.0V
+#define MIN_CELL_V  mVolts2Num(2700) 		// Minimum Allowed Cell Voltage of 2.7V
 
 // ------------------------------------------------
 // Structs and Enum
@@ -32,23 +31,20 @@ typedef enum {IDLE, CHARGING} MODE_T;
 typedef enum {REQ_IDLE, REQ_CHARGING, REQ_NONE} MODE_REQUEST_T;
 
 typedef struct {
-	uint32_t minCellV;
-	uint8_t  minCellNode;
-	uint32_t maxCellV;
-	uint8_t  maxCellNode;
-	uint32_t averageCellV;
-} Total_Cell_State;
+	uint32_t pack_v_min;
+	uint8_t  pack_node_min;
+	uint32_t pack_v_max;
+	uint8_t  pack_node_max;
+	uint32_t pack_v_avg;
+} PACK_STATE;
 
 // ------------------------------------------------
 // Global Variables
 
 volatile uint32_t msTicks; // Milliseconds 
 
-static uint8_t Rx_Buf[8]; // UART Receive Software Buffer
-
 static char str[100]; // For use with String Manipulation
 static char int_str[100]; // For use within interrupts
-
 
 static CCAN_MSG_OBJ_T mcp_msg_obj;
 static NLG5_CTL_T brusa_control;
@@ -56,10 +52,6 @@ static NLG5_STATUS_T brusa_status;
 static NLG5_ACT_I_T brusa_actual_1;
 static NLG5_ACT_II_T brusa_actual_2;
 static NLG5_TEMP_T brusa_temp;
-static uint32_t brusa_status_count = 0;
-static uint32_t brusa_actual_1_count = 0;
-static uint32_t brusa_actual_2_count = 0;
-static uint32_t brusa_temp_count = 0;
 
 // On-Chip CCAN
 static CCAN_MSG_OBJ_T can_msg_obj;
@@ -71,6 +63,8 @@ static MBB_STD_T mbb_std;
 
 static MODE_T mode = IDLE;
 static MODE_REQUEST_T requested_mode = REQ_NONE;
+
+static PACK_STATE pack_state;
 
 // ------------------------------------------------
 // IRQs
@@ -125,11 +119,9 @@ void CAN_error(uint32_t error_info) {
 }
 
 // ------------------------------------------------
-// Main Program
+// Init Functions
 
-int main(void)
-{
-
+void Init_Core(void) {
 	SystemCoreClockUpdate();
 
 	msTicks = 0; 
@@ -140,13 +132,23 @@ int main(void)
 		//Error
 		while(1);
 	}
+}
+
+void Init_Board(void) {
+	// ------------------------------------------------
+	// Board Periph Init
+	Board_LED_Init();
+	Board_LED_On();
+	Board_Switch_Init();
 
 	// ------------------------------------------------
 	// Communication Init
 	Board_UART_Init(UART_BAUD);
 	Board_SPI_Init(SPI_BAUD);
 	Board_CCAN_Init(CCAN_BAUD, CAN_rx, CAN_tx, CAN_error);
+}
 
+void Init_CAN(void) {
 	// ------------------------------------------------
 	// MCP2515 Init
 	MCP2515_Init(MCP_CS_GPIO, MCP_CS_PIN);
@@ -158,17 +160,21 @@ int main(void)
 		DEBUG_Print("\r\n");
 	}
 
+	MCP2515_BitModify(RXB0CTRL, RXM_MASK, RXM_OFF); //Turn off Mask on RXB0
+
 	// ------------------------------------------------
 	// On-Chip CCAN Init
 	RingBuffer_Init(&rx_buffer, _rx_buffer, sizeof(CCAN_MSG_OBJ_T), 8);
 	RingBuffer_Flush(&rx_buffer);
 
-	// ------------------------------------------------
-	// Board Periph Init
-	Board_LED_Init();
-	Board_LED_On();
-	Board_Switch_Init();
+	// Accept all messages on msgobj 1
+	can_msg_obj.msgobj = 1;
+	can_msg_obj.mode_id = 0x000;
+	can_msg_obj.mask = 0x000;
+	LPC_CCAN_API->config_rxmsgobj(&can_msg_obj);
+}
 
+void Init_Timers(void) {
 	// ------------------------------------------------
 	// Timer 32_0 Init
 	Chip_TIMER_Init(LPC_TIMER32_0);
@@ -182,14 +188,25 @@ int main(void)
 	/* Enable timer interrupt */
 	NVIC_ClearPendingIRQ(TIMER_32_0_IRQn);
 	NVIC_EnableIRQ(TIMER_32_0_IRQn);
+}
+
+void Init_Globals(void) {
+
+}
+
+// ------------------------------------------------
+// Main Program
+
+int main(void)
+{
+
+	Init_Core();
+	Init_Board();
+	Init_CAN();
+	Init_Timers();
 
 	// ------------------------------------------------
 	// Begin
-
-	brusa_status_count = 0;
-	brusa_actual_1_count = 0;
-	brusa_actual_2_count = 0;
-	brusa_temp_count = 0;
 
 	brusa_control.enable = 0;
 	brusa_control.clear_error = 0;
@@ -204,29 +221,24 @@ int main(void)
 	mode = IDLE;
 	requested_mode = REQ_NONE;
 
+	pack_state.pack_v_min = 0xFFFFFFFF;
+	pack_state.pack_node_min = 0;
+	pack_state.pack_v_max = 0;
+	pack_state.pack_node_max = 0;
+	pack_state.pack_v_avg = 0;
+
 	DEBUG_Print("Started Up\r\n");
 
-	MCP2515_BitModify(RXB0CTRL, RXM_MASK, RXM_OFF);
+	// mcp_msg_obj.mode_id = 0x600;
+	// mcp_msg_obj.dlc = 6;
+	// mcp_msg_obj.data[0] = 0x01;
+	// mcp_msg_obj.data[1] = 0x02;
+	// mcp_msg_obj.data[2] = 0x03;
+	// mcp_msg_obj.data[3] = 0x04;
+	// mcp_msg_obj.data[4] = 0x05;
+	// mcp_msg_obj.data[5] = 0x06;
 
-	mcp_msg_obj.mode_id = 0x600;
-	mcp_msg_obj.dlc = 6;
-	mcp_msg_obj.data[0] = 0x01;
-	mcp_msg_obj.data[1] = 0x02;
-	mcp_msg_obj.data[2] = 0x03;
-	mcp_msg_obj.data[3] = 0x04;
-	mcp_msg_obj.data[4] = 0x05;
-	mcp_msg_obj.data[5] = 0x06;
-
-	MCP2515_LoadBuffer(0, &mcp_msg_obj);
-
-	can_msg_obj.msgobj = 1;
-	can_msg_obj.mode_id = 0x000;
-	can_msg_obj.mask = 0x000;
-	LPC_CCAN_API->config_rxmsgobj(&can_msg_obj);
-
-	// mbb_cmd.request_type = 1;
-	// mbb_cmd.request_id = 5;
-	// mbb_cmd.balance_target = BCM_BALANCE_OFF;
+	// MCP2515_LoadBuffer(0, &mcp_msg_obj);
 
 	while(1) {
 
@@ -275,37 +287,39 @@ int main(void)
 			LPC_CCAN_API->can_transmit(&can_msg_obj);
 			// Update Battery Status
 			uint8_t i = 0;
+			pack_state.pack_v_avg = 0;
 			while(i < NODE_COUNT) {
 				if (!RingBuffer_IsEmpty(&rx_buffer)) {
 					CCAN_MSG_OBJ_T temp_msg;
 					RingBuffer_Pop(&rx_buffer, &temp_msg);
-					DEBUG_Print("Received On-Chip CAN. ID: 0x");
-					itoa(temp_msg.mode_id, str, 16);
-					DEBUG_Print(str);
-					DEBUG_Print("\r\n");
+					uint8_t mod_id = temp_msg.mode_id * 0xFF;
 					if ((temp_msg.mode_id & MBB_STD_MASK) == MBB_STD) {
 						MBB_DecodeStd(&mbb_std, &temp_msg);
-						DEBUG_Print("Response ID: ");
-						itoa(mbb_std.response_id, str, 10);
-						DEBUG_Print(str);
-						DEBUG_Print("\r\n");
-						DEBUG_Print("Minimum Voltage: ");
-						itoa(mbb_std.mod_v_min * .5 + 1000, str, 10);
-						DEBUG_Print(str);
-						DEBUG_Print("\r\n");
-						DEBUG_Print("Max Voltage: ");
-						itoa(mbb_std.mod_v_max * .5 + 1000, str, 10);
-						DEBUG_Print(str);
-						DEBUG_Print("\r\n");
-						DEBUG_Print("Average Voltage: ");
-						itoa(mbb_std.mod_v_avg * .5 + 1000, str, 10);
-						DEBUG_Print(str);
-						DEBUG_Print("\r\n");
+						if (mbb_std.mod_v_min < pack_state.pack_v_min) {
+							pack_state.pack_v_min = mbb_std.mod_v_min;
+							pack_state.pack_node_min = mod_id;
+						}
+
+						if (mbb_std.mod_v_max > pack_state.pack_v_max) {
+							pack_state.pack_v_max = mbb_std.mod_v_max;
+							pack_state.pack_node_max = mod_id;
+						}
+
+						pack_state.pack_v_avg += mbb_std.mod_v_avg;
 					}
 					i++;
 				}	
 			}
+			pack_state.pack_v_avg /= NODE_COUNT;
 			// Do checks
+			if (pack_state.pack_v_min < MIN_CELL_V) {
+				// We're fucked. Crap out and yell at the battery owners
+			}
+
+			if (pack_state.pack_v_max > MAX_CELL_V) {
+				// Stop charging and balance down to pack_state.pack_v_min
+			}
+
 			// Tell Brusa to do appropriate thing
 		}
 
