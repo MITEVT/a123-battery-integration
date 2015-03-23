@@ -27,8 +27,9 @@
 // ------------------------------------------------
 // Structs and Enum
 
-typedef enum {IDLE, CHARGING} MODE_T;
+typedef enum {IDLE, CHARGING, DRAINING} MODE_T;
 typedef enum {REQ_IDLE, REQ_CHARGING, REQ_NONE} MODE_REQUEST_T;
+typedef enum {CHRG_BALANCING, CHRG_CHARGING, CHRG_NONE} CHARGING_MODE_T;
 
 typedef struct {
 	uint32_t pack_v_min;
@@ -63,6 +64,7 @@ static MBB_STD_T mbb_std;
 
 static MODE_T mode = IDLE;
 static MODE_REQUEST_T requested_mode = REQ_NONE;
+static CHARGING_MODE_T charging_mode = CHRG_NONE;
 
 static PACK_STATE pack_state;
 
@@ -81,7 +83,6 @@ void TIMER32_0_IRQHandler(void) {
 		MCP2515_LoadBuffer(0, &mcp_msg_obj);
 		MCP2515_SendBuffer(0);
 	}
-
 }
 
 // ------------------------------------------------
@@ -140,6 +141,7 @@ void Init_Board(void) {
 	Board_LED_Init();
 	Board_LED_On();
 	Board_Switch_Init();
+	Board_Contactors_Init();
 
 	// ------------------------------------------------
 	// Communication Init
@@ -258,17 +260,28 @@ int main(void)
 				if (mode == IDLE) {
 					// Begin charging
 					// Close Contacters
+					if (!Board_Contactors_On()) {
+						// FUCK We can't turn the contactors on
+						DEBUG_Print("Unable to open contactors. Returning to IDLE Mode.\r\n");
+					}
 
 					// Set Mode to Charging
 					mode = CHARGING;
+					charging_mode = CHRG_NONE;
 					DEBUG_Print("Charging\r\n");
 					requested_mode = REQ_NONE;
 				}
 			} else if (requested_mode == REQ_IDLE) {
 				// Is able to go to idle?
+
 				// Open contactors
+				if (!Board_Contactors_Off()) {
+					DEBUG_Print("Unable to open contactors. You're officially fucked\r\n");
+					// FUCK We can't turn the contactors OFF
+				}
 				// Go to idle
 				mode = IDLE;
+				charging_mode = CHRG_NONE;
 				DEBUG_Print("Idle\r\n");
 				requested_mode = REQ_NONE;
 			}
@@ -318,6 +331,7 @@ int main(void)
 
 			if (pack_state.pack_v_max > MAX_CELL_V) {
 				// Stop charging and balance down to pack_state.pack_v_min
+
 			}
 
 			// Tell Brusa to do appropriate thing
@@ -328,21 +342,6 @@ int main(void)
 		// 	DEBUG_Write(Rx_Buf, count);
 		// 	DEBUG_Print("\r\n");
 		// 	switch (Rx_Buf[0]) {
-		// 		case 't':
-		// 			if (mode == CHARGING) {
-		// 				requested_mode = REQ_IDLE;
-		// 			} else {
-		// 				requested_mode = REQ_CHARGING;
-		// 			}
-		// 			break;
-		// 		case 'i':
-		// 			DEBUG_Print("Mode is: ");
-		// 			if (mode == CHARGING) {
-		// 				DEBUG_Print("CHARGING\r\n");
-		// 			} else {
-		// 				DEBUG_Print("IDLE\r\n");
-		// 			}
-		// 			break;
 		// 		case 's':
 		// 			DEBUG_Print("Status Count: ");
 		// 			itoa(brusa_status_count, str, 10);
