@@ -117,6 +117,8 @@ void Board_Contactors_Init(void) {
 	Chip_GPIO_SetPinDIROutput(LPC_GPIO, CONTACTOR_N_GPIO, CONTACTOR_N_PIN);
 	Chip_GPIO_SetPinDIROutput(LPC_GPIO, CONTACTOR_P_GPIO, CONTACTOR_P_PIN);
 	Chip_GPIO_SetPinDIROutput(LPC_GPIO, CONTACTOR_PRE_GPIO, CONTACTOR_PRE_PIN);
+
+	Board_Contactors_Off();
 }
 
 bool Board_Contactors_On(void) {

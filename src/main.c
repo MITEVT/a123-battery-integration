@@ -23,9 +23,23 @@
 #define NODES_PER_MODULE 2
 #define NODE_COUNT MODULE_COUNT * NODES_PER_MODULE
 
-#define MAX_CELL_V 	mVolts2Num(4000) 		// Maximum Allowed Cell Voltage of 4.0V
+#define MAX_CELL_V 	mVolts2Num(3800) 		// Maximum Allowed Cell Voltage of 3.8V
 #define MIN_CELL_V  mVolts2Num(2700) 		// Minimum Allowed Cell Voltage of 2.7V
+#define BCM_BAL_ON_THRESH mVolts2Num(1)	    // As state by datasheet, Value at which must stop charging
+#define BCM_BAL_OFF_THRESH mVolts2Num(4)
+#define BCM_BAL_CELL_V_MIN mVolts2Num(3400)
+#define BCM_CHRG_CELL_V_MAX mVolts2Num(3600)
 
+#define BCM_CHRG_ALLOWED(pack_v_max) (pack_v_max < BCM_CHRG_CELL_V_MAX)
+#define BCM_DRAIN_ALLOWED(pack_v_min) (pack_v_min > MIN_CELL_V)
+
+#define BCM_BAL_ENABLE(pack_v_max, pack_v_min) ((pack_v_max - pack_v_min) > BCM_BAL_OFF_THRESH) && pack_v_min > BCM_BAL_CELL_V_MIN
+#define BCM_BAL_DISABLE(pack_v_max, pack_v_min) ((pack_v_max - pack_v_min) <= BCM_BAL_ON_THRESH) || pack_v_min < BCM_BAL_CELL_V_MIN
+
+#define ERROR_LOW_VOLTAGE 1
+#define ERROR_HIGH_VOLTAGE 2
+#define ERROR_CAN_BUS 3
+#define ERROR_INCOMPATIBLE_MODE 4
 #define ERROR_CONTACTOR 5
 
 #define BCM_POLL_IDLE_FREQ 1
@@ -177,21 +191,24 @@ void _delay_ms(uint32_t ms) {
 	}
 }
 
-void _error(uint8_t errorNo, bool flashLED) {
+void _error(uint8_t errorNo, bool flashLED, bool hang) {
 	DEBUG_Print("Error(");
 	itoa(errorNo, str, 10);
 	DEBUG_Print(str);
 	DEBUG_Print(")\r\n");
 
-	if (flashLED) {
-		uint8_t i;
-		for (i = 0; i < errorNo; i++) {
-			Board_LED_Off();
-			_delay_ms(800);
-			Board_LED_On();
-			_delay_ms(800);
+	do { // Hang forever
+		if (flashLED) {
+			uint8_t i;
+			for (i = 0; i < errorNo; i++) {
+				Board_LED_Off();
+				_delay_ms(800);
+				Board_LED_On();
+				_delay_ms(800);
+			}
 		}
-	}
+		_delay_ms(1500);
+	} while(hang);
 
 	Board_LED_Off();
 }
@@ -259,6 +276,7 @@ void Init_CAN(void) {
 		DEBUG_Print("Baud Error: ");
 		DEBUG_Print(str);
 		DEBUG_Print("\r\n");
+		_error(ERROR_CAN_BUS, true, true);
 	}
 
 	MCP2515_BitModify(RXB0CTRL, RXM_MASK, RXM_OFF); //Turn off Mask on RXB0
@@ -320,7 +338,6 @@ int main(void)
 	// ------------------------------------------------
 	// Begin
 
-
 	DEBUG_Print("Started Up\r\n");
 
 	// mcp_msg_obj.mode_id = 0x600;
@@ -336,6 +353,8 @@ int main(void)
 
 	while(1) {
 
+
+		// Detect requests
 		if (!Board_Switch_Read()) {
 			if (mode != CHARGING) {
 				requested_mode = REQ_CHARGING;
@@ -346,76 +365,92 @@ int main(void)
 			}
 		}
 
+		// Handle Requests
 		if (requested_mode != REQ_NONE) {
 			if (requested_mode == REQ_CHARGING) {
 				// Is able to charge?
-				if (mode == IDLE) {
-					// Begin charging
+				if (mode == IDLE && BCM_CHRG_ALLOWED(pack_state.pack_v_max)) {
 					// Close Contacters
 					if (!Board_Contactors_On()) {
 						// FUCK We can't turn the contactors on
 						DEBUG_Print("Unable to open contactors. Returning to IDLE Mode.\r\n");
+						_error(ERROR_CONTACTOR, true, false);
+					} else {
+						// Set Mode to Charging
+						mode = CHARGING;
+						charging_mode = CHRG_NONE;
+						DEBUG_Print("Charging\r\n");
+						requested_mode = REQ_NONE;
+
+						UpdateBCMTimerFreq(BCM_POLL_CHARGING_FREQ);
 					}
-
-					// Set Mode to Charging
-					mode = CHARGING;
-					charging_mode = CHRG_NONE;
-					DEBUG_Print("Charging\r\n");
-					requested_mode = REQ_NONE;
-
-					UpdateBCMTimerFreq(BCM_POLL_CHARGING_FREQ);
 				}
 			} else if (requested_mode == REQ_IDLE) {
 				// Is able to go to idle?
-
+					// Don't know what goes here
 				// Open contactors
 				if (!Board_Contactors_Off()) {
-					DEBUG_Print("Unable to open contactors. You're officially fucked\r\n");
 					// FUCK We can't turn the contactors OFF
-				}
-				// Go to idle
-				mode = IDLE;
-				charging_mode = CHRG_NONE;
-				DEBUG_Print("Idle\r\n");
-				requested_mode = REQ_NONE;
+					// Not quite sure what we should do in this case. Perhaps hang and require a full system restart with manual, but safe, intervention from user
+					DEBUG_Print("Unable to open contactors. You're officially fucked\r\n");
+					_error(ERROR_CONTACTOR, true, false); // <- Should we hang?
+				} else {
+					// Go to idle
+					mode = IDLE;
+					charging_mode = CHRG_NONE;
+					DEBUG_Print("Idle\r\n");
+					requested_mode = REQ_NONE;
 
-				UpdateBCMTimerFreq(BCM_POLL_IDLE_FREQ);
+					UpdateBCMTimerFreq(BCM_POLL_IDLE_FREQ);
+				}
 			} else if (requested_mode == REQ_DRAINING) {
 				// Able to drain?
+				if (mode == IDLE && BCM_DRAIN_ALLOWED(pack_state.pack_v_min)) {
+					// Close Contactors
+					if (!Board_Contactors_On()) {
+							// FUCK We can't turn the contactors on
+							DEBUG_Print("Unable to open contactors. Returning to IDLE Mode.\r\n");
+							_error(ERROR_CONTACTOR, true, false);
+							requested_mode = REQ_NONE;
+					} else {
+						// Go to drain mode
+						mode = DRAINING;
+						charging_mode = CHRG_NONE;
+						DEBUG_Print("Ready to drain\r\n");
+						requested_mode = REQ_NONE;
 
-				// Close Contactors
-				if (!Board_Contactors_On()) {
-						// FUCK We can't turn the contactors on
-						DEBUG_Print("Unable to open contactors. Returning to IDLE Mode.\r\n");
+						UpdateBCMTimerFreq(BCM_POLL_DRAINING_FREQ);
+					}
+				} else {
+					if (mode == CHARGING) {
+						_error(ERROR_INCOMPATIBLE_MODE, true, false);
+					} else {
+						_error(ERROR_LOW_VOLTAGE, true, true);
+					}
+					requested_mode = REQ_NONE;
 				}
-
-				mode = DRAINING;
-				charging_mode = CHRG_NONE;
-				DEBUG_Print("Ready to drain\r\n");
-				requested_mode = REQ_NONE;
-
-				UpdateBCMTimerFreq(BCM_POLL_DRAINING_FREQ);
 			}
 		}
 
+		// Handle mode functionality
 		if (mode == IDLE) {
 			// Do nothing?
 		} else if (mode == CHARGING) {
-
 			// Do checks
-			if (pack_state.pack_v_min < MIN_CELL_V) {
-				// We're fucked. Crap out and yell at the battery owners
-
-			}
-
-			if (pack_state.pack_v_max > MAX_CELL_V) {
-				// Stop charging and balance down to pack_state.pack_v_min
-
-			}
 
 			// Tell Brusa to do appropriate thing
 
+		} else if (mode == DRAINING) {
+			// Do checks
+
+			// If checks fail close contactors
+				// Signal to whomever that they need to charge
+			// Else
+				// Write out the state of the pack for informative purposes
 		}
+
+		// [TODO]
+			// When should we be checking for unallowable voltages? At pack_state update?
 
 		// uint8_t count;
 		// if ((count = Chip_UART_Read(LPC_USART, Rx_Buf, 8)) != 0) {
