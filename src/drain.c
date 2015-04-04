@@ -6,7 +6,7 @@
 
 #include "drain.h"
 
-DRAIN_RET_STATUS_T Drain_Step(PACK_STATE* pack_state, MODE_T next_mode, OUTPUT_STATE*){
+DRAIN_STATUS_T Drain_Step(PACK_STATE* pack_state, MODE_T next_mode, OUTPUT_STATE* os){
 	switch(next_mode){
 		case IDLE:
 			break;
@@ -21,9 +21,10 @@ DRAIN_RET_STATUS_T Drain_Step(PACK_STATE* pack_state, MODE_T next_mode, OUTPUT_S
 			//Return output state request, contactor = close
 			break;
 	}
+	return DRAIN_OK;
 }
 
 
-DRAIN_MODE_T Charge_GetMode(){
-
+DRAIN_MODE_T Drain_GetMode(){
+	return DRAIN_EXIT;
 }
