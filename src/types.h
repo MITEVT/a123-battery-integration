@@ -4,6 +4,8 @@
 #include "lpc_types.h"
 #include "chip.h"
 
+#define BCM_DRAIN_ALLOWED(pack_v_min) (pack_v_min > MIN_CELL_V)
+#define BCM_CHRG_ALLOWED(pack_v_max) (pack_v_max < BCM_CHRG_CELL_V_MAX)
 
 // ------------------------------------------------
 // Structs and Enum

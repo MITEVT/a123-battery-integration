@@ -33,9 +33,6 @@
 #define BCM_BAL_CELL_V_MIN mVolts2Num(3400)
 #define BCM_CHRG_CELL_V_MAX mVolts2Num(3600)
 
-#define BCM_CHRG_ALLOWED(pack_v_max) (pack_v_max < BCM_CHRG_CELL_V_MAX)
-#define BCM_DRAIN_ALLOWED(pack_v_min) (pack_v_min > MIN_CELL_V)
-
 #define BCM_BAL_ENABLE(pack_v_max, pack_v_min) ((pack_v_max - pack_v_min) > BCM_BAL_OFF_THRESH) && pack_v_min > BCM_BAL_CELL_V_MIN
 #define BCM_BAL_DISABLE(pack_v_max, pack_v_min) ((pack_v_max - pack_v_min) <= BCM_BAL_ON_THRESH) || pack_v_min < BCM_BAL_CELL_V_MIN
 
