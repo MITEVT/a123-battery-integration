@@ -1,9 +1,10 @@
 #include "board.h"
 #include "util.h"
+#include "charge.h"
 #include "mcp2515.h"
 #include "brusa.h"
 #include "a123mbb.h"
-#include "charge.h"
+#include <string.h>
 
 #define UART_BAUD 9600
 #define SPI_BAUD  500000
@@ -53,22 +54,6 @@
 #define UpdateBCMTimerFreq(freq) (Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, Hertz2Ticks(freq)))
 
 // ------------------------------------------------
-// Structs and Enum
-
-typedef enum {IDLE, CHARGING, DRAINING} MODE_T;
-typedef enum {REQ_IDLE, REQ_CHARGING, REQ_DRAINING, REQ_NONE} MODE_REQUEST_T;
-typedef enum {CHRG_BALANCING, CHRG_CHARGING, CHRG_NONE} CHARGING_MODE_T;
-
-typedef struct {
-	uint32_t pack_v_min;
-	uint8_t  pack_node_min;
-	uint32_t pack_v_max;
-	uint8_t  pack_node_max;
-	uint32_t pack_v_avg;
-	uint32_t messagesReceived;
-} PACK_STATE;
-
-// ------------------------------------------------
 // Global Variables
 
 volatile uint32_t msTicks; // Milliseconds 
@@ -98,6 +83,38 @@ static MODE_REQUEST_T requested_mode = REQ_NONE;
 static CHARGING_MODE_T charging_mode = CHRG_NONE;
 
 static PACK_STATE pack_state;
+
+// ------------------------------------------------
+// Helper functions that don't belong in util because systick and printing
+
+void _delay_ms(uint32_t ms) {
+	uint32_t currTicks = msTicks;
+	while(msTicks - currTicks < ms) {
+
+	}
+}
+
+void _error(uint8_t errorNo, bool flashLED, bool hang) {
+	DEBUG_Print("Error(");
+	itoa(errorNo, str, 10);
+	DEBUG_Print(str);
+	DEBUG_Print(")\r\n");
+
+	do { // Hang forever
+		if (flashLED) {
+			uint8_t i;
+			for (i = 0; i < errorNo; i++) {
+				Board_LED_Off();
+				_delay_ms(800);
+				Board_LED_On();
+				_delay_ms(800);
+			}
+		}
+		_delay_ms(1500);
+	} while(hang);
+
+	Board_LED_Off();
+}
 
 // ------------------------------------------------
 // IRQs
@@ -179,42 +196,7 @@ void CAN_tx(uint8_t msg_obj_num) {
 /*	Function is executed by the Callback handler after
     an error has occured on the CAN bus */
 void CAN_error(uint32_t error_info) {
-	DEBUG_Print("Error: ");
-	itoa(error_info, int_str, 10);
-	DEBUG_Print(int_str);
-	DEBUG_Print("\r\n");
-}
-
-// ------------------------------------------------
-// Helper functions that don't belong in util because systick and printing
-
-void _delay_ms(uint32_t ms) {
-	uint32_t currTicks = msTicks;
-	while(msTicks - currTicks < ms) {
-
-	}
-}
-
-void _error(uint8_t errorNo, bool flashLED, bool hang) {
-	DEBUG_Print("Error(");
-	itoa(errorNo, str, 10);
-	DEBUG_Print(str);
-	DEBUG_Print(")\r\n");
-
-	do { // Hang forever
-		if (flashLED) {
-			uint8_t i;
-			for (i = 0; i < errorNo; i++) {
-				Board_LED_Off();
-				_delay_ms(800);
-				Board_LED_On();
-				_delay_ms(800);
-			}
-		}
-		_delay_ms(1500);
-	} while(hang);
-
-	Board_LED_Off();
+	_error(ERROR_CAN_BUS, true, false);
 }
 
 // ------------------------------------------------
