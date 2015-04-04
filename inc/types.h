@@ -1,8 +1,11 @@
 #ifndef _TYPES_H_
 #define _TYPES_H_
 
-#include "lpc_types.h"
+// #include "lpc_types.h"
 #include "chip.h"
+#include "mcp2515.h"
+#include "brusa.h"
+#include "a123mbb.h"
 
 
 #define MAX_CELL_V 	mVolts2Num(3800) 		// Maximum Allowed Cell Voltage of 3.8V
