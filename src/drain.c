@@ -1,11 +1,8 @@
-//Progresses state of DRAIN state machine
-//	If function is called, current mode must be DRAINING
-//	next_mode is the next requested mode
-
 #include "drain.h"
 
 static DRAIN_MODE_T mode = DRAIN_INIT;
 
+//Progresses state of DRAIN state machine
 DRAIN_STATUS_T Drain_Step(PACK_STATE* pack_state, MODE_T req_mode, OUTPUT_STATE* os){
 	switch(req_mode){
 		case IDLE:
