@@ -33,3 +33,5 @@
 # Utilities
 *.jar
 *.dia
+
+bin/
