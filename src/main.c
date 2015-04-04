@@ -3,11 +3,13 @@
 #include "mcp2515.h"
 #include "brusa.h"
 #include "a123mbb.h"
+#include "charge.h"
 
 #define UART_BAUD 9600
 #define SPI_BAUD  500000
 #define CCAN_BAUD 500000
 
+#define UART_RX_BUF_SIZE 0x8
 #define CCAN_BUF_SIZE 0x10
 
 #define MCP_BAUD_KHZ  500
@@ -71,6 +73,8 @@ typedef struct {
 
 volatile uint32_t msTicks; // Milliseconds 
 
+uint8_t Rx_Buf[UART_RX_BUF_SIZE];
+
 static char str[100]; // For use with String Manipulation
 static char int_str[100]; // For use within interrupts
 
@@ -114,7 +118,7 @@ void TIMER32_0_IRQHandler(void) {
 
 // Used for sending BCM_CMD and checking for available data
 void TIMER32_1_IRQHandler(void) {
-
+	Chip_TIMER_ClearMatch(LPC_TIMER32_1, 0);
 	// Update Battery Status
 	if (!RingBuffer_IsEmpty(&rx_buffer)) {
 		CCAN_MSG_OBJ_T temp_msg;
@@ -352,16 +356,40 @@ int main(void)
 	// MCP2515_LoadBuffer(0, &mcp_msg_obj);
 
 	while(1) {
+		uint8_t count;
+		if ((count = Chip_UART_Read(LPC_USART, Rx_Buf, UART_RX_BUF_SIZE)) != 0) {
+			DEBUG_Write(Rx_Buf, count);
+			switch (Rx_Buf[0]) {
+				case 'a':
+					itoa(num2mVolts(pack_state.pack_v_min), str, 10);
+					DEBUG_Print("Pack Min Voltage: ");
+					DEBUG_Print(str);
+					DEBUG_Print("\r\n");
+					itoa(num2mVolts(pack_state.pack_v_max), str, 10);
+					DEBUG_Print("Pack Max Voltage: ");
+					DEBUG_Print(str);
+					DEBUG_Print("\r\n");
+					itoa(num2mVolts(pack_state.pack_v_avg), str, 10);
+					DEBUG_Print("Pack Avg Voltage: ");
+					DEBUG_Print(str);
+					DEBUG_Print("\r\n");
 
+					break;
+				default:
+					DEBUG_Print("Unknown Command\r\n");
+			}
+		}
 
 		// Detect requests
 		if (!Board_Switch_Read()) {
 			if (mode != CHARGING) {
 				requested_mode = REQ_CHARGING;
+				DEBUG_Print("Charge Request Received\r\n");
 			}
 		} else {
 			if (mode == CHARGING) {
 				requested_mode = REQ_IDLE;
+				DEBUG_Print("Idle Request Received\r\n");
 			}
 		}
 
@@ -437,7 +465,13 @@ int main(void)
 			// Do nothing?
 		} else if (mode == CHARGING) {
 			// Do checks
+			if (charging_mode == CHRG_CHARGING) {
 
+			} else if (charging_mode == CHRG_BALANCING) {
+
+			} else if (charging_mode == CHRG_NONE) {
+
+			}
 			// Tell Brusa to do appropriate thing
 
 		} else if (mode == DRAINING) {
