@@ -1,30 +1,37 @@
-//Progresses state of DRAIN state machine
-//	If function is called, current mode must be DRAINING
-//	next_mode is the next requested mode
-
-//INIT
-
 #include "drain.h"
 
-DRAIN_STATUS_T Drain_Step(PACK_STATE* pack_state, MODE_T next_mode, OUTPUT_STATE* os){
-	switch(next_mode){
+static DRAIN_MODE_T mode = DRAIN_INIT;
+
+//Progresses state of DRAIN state machine
+DRAIN_STATUS_T Drain_Step(PACK_STATE* pack_state, MODE_T req_mode, OUTPUT_STATE* os){
+	switch(req_mode){
 		case IDLE:
+			os->close_contactors = false;
+			mode = DRAIN_EXIT;
+			return DRAIN_OK;
 			break;
 
 		case CHARGING:
-			//Check if can continue drain
-			//Return output state request
+			os->close_contactors = false;
+			mode = DRAIN_EXIT;
+			return DRAIN_OK;
 			break;
 
 		case DRAINING:
-			//Check if can continue drain
-			//Return output state request, contactor = close
+			//Is battery in state to drain?
+			if(BCM_DRAIN_ALLOWED(pack_state->pack_v_min)) {
+				os->close_contactors = true;
+				mode = DRAIN_DRAINING;
+				return DRAIN_OK;
+			} else {
+				os->close_contactors = false;
+				return DRAIN_ERROR;
+			}
 			break;
 	}
-	return DRAIN_OK;
 }
 
 
-DRAIN_MODE_T Drain_GetMode(){
-	return DRAIN_EXIT;
+DRAIN_MODE_T Drain_GetMode(void){
+	return mode;
 }
