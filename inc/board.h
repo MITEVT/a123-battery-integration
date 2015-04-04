@@ -4,6 +4,7 @@
 #include "types.h"
 #include "util.h"
 #include "charge.h"
+#include "drain.h"
 
 #define LED1_GPIO 2
 #define LED1_PIN 10
@@ -45,6 +46,8 @@ bool Board_Switch_Read(void);
 void Board_Contactors_Init(void);
 bool Board_Contactors_On(void);
 bool Board_Contactors_Off(void);
+
+bool Board_Contactors_Closed(void);
 
 extern void CAN_rx(uint8_t msg_obj_num);
 extern void CAN_tx(uint8_t msg_obj_num);

@@ -141,3 +141,7 @@ bool Board_Contactors_Off(void) {
 	return true;
 }
 
+bool Board_Contactors_Closed(void) {
+	return true;
+}
+

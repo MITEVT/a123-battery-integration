@@ -63,6 +63,7 @@ static MODE_T mode = IDLE;
 static MODE_REQUEST_T requested_mode = REQ_NONE;
 
 static PACK_STATE pack_state;
+static OUTPUT_STATE out_state;
 
 // ------------------------------------------------
 // Helper functions that don't belong in util because systick and printing
@@ -96,12 +97,24 @@ void _error(uint8_t errorNo, bool flashLED, bool hang) {
 	Board_LED_Off();
 }
 
-MODE_T getNextMode(PACK_STATE state, MODE_T mode, bool idle, bool charge, bool drain) {
-	if (mode != IDLE && idle) {
+MODE_T getNextMode(MODE_REQUEST_T requested_mode, MODE_T mode) {
+		// Handle Requests
+	if (requested_mode == REQ_IDLE) {
 		return IDLE;
+	} else if (requested_mode == REQ_NONE) {
+		return mode;
+	} else {
+		if (mode == IDLE) {
+			if (requested_mode == REQ_CHARGING) {
+				return CHARGING;
+			} else {
+				return DRAINING;
+			}
+		} else {
+			_error(ERROR_INCOMPATIBLE_MODE, true, false);
+			return mode;
+		}
 	}
-
-	return 0;
 }
 
 // ------------------------------------------------
@@ -238,6 +251,11 @@ void Init_Globals(void) {
 	pack_state.pack_node_max = 0;
 	pack_state.pack_v_avg = 0;
 	pack_state.messagesReceived = 0;
+
+	out_state.balance_voltage = BCM_BALANCE_OFF;
+	out_state.brusa_voltage = 0;
+	out_state.brusa_current = 0;
+	out_state.close_contactors = false;
 }
 
 void Init_CAN(void) {
@@ -350,108 +368,55 @@ int main(void)
 			}
 		}
 
-		// // Detect requests
-		// if (!Board_Switch_Read()) {
-		// 	if (mode != CHARGING) {
-		// 		requested_mode = REQ_CHARGING;
-		// 		DEBUG_Print("Charge Request Received\r\n");
-		// 	}
-		// } else {
-		// 	if (mode == CHARGING) {
-		// 		requested_mode = REQ_IDLE;
-		// 		DEBUG_Print("Idle Request Received\r\n");
-		// 	}
-		// }
+		// Detect requests
+		if (!Board_Switch_Read()) {
+			if (mode != CHARGING) {
+				requested_mode = REQ_CHARGING;
+				DEBUG_Print("Charge Request Received\r\n");
+			}
+		} else {
+			if (mode == CHARGING) {
+				requested_mode = REQ_IDLE;
+				DEBUG_Print("Idle Request Received\r\n");
+			}
+		}
 
-		// // Handle Requests
-		// if (requested_mode != REQ_NONE) {
-		// 	if (requested_mode == REQ_CHARGING) {
-		// 		// Is able to charge?
-		// 		if (mode == IDLE && BCM_CHRG_ALLOWED(pack_state.pack_v_max)) {
-		// 			// Close Contacters
-		// 			if (!Board_Contactors_On()) {
-		// 				// FUCK We can't turn the contactors on
-		// 				DEBUG_Print("Unable to open contactors. Returning to IDLE Mode.\r\n");
-		// 				_error(ERROR_CONTACTOR, true, false);
-		// 			} else {
-		// 				// Set Mode to Charging
-		// 				mode = CHARGING;
-		// 				charging_mode = CHRG_NONE;
-		// 				DEBUG_Print("Charging\r\n");
-		// 				requested_mode = REQ_NONE;
+		MODE_T old_mode = mode;
+		mode = getNextMode(requested_mode, mode);
+		if (old_mode != mode) {
+			// Changed mode
+			if (old_mode == CHARGING) {
+				while(Charge_Step(&pack_state, mode, &out_state) != CHRG_EXITED) {
+					if (!out_state.close_contactors) {
+						Board_Contactors_Off();
+					}
+					pack_state.contactors_closed = Board_Contactors_Closed();
+				}
+			} else if (old_mode == DRAINING) {
+				while(Drain_Step(&pack_state, mode, &out_state) != DRAIN_EXITED) {
+					if (!out_state.close_contactors) {
+						Board_Contactors_Off();
+					}
+					pack_state.contactors_closed = Board_Contactors_Closed();
+				}
+			}
+		}
 
-		// 				UpdateBCMTimerFreq(BCM_POLL_CHARGING_FREQ);
-		// 			}
-		// 		}
-		// 	} else if (requested_mode == REQ_IDLE) {
-		// 		// Is able to go to idle?
-		// 			// Don't know what goes here
-		// 		// Open contactors
-		// 		if (!Board_Contactors_Off()) {
-		// 			// FUCK We can't turn the contactors OFF
-		// 			// Not quite sure what we should do in this case. Perhaps hang and require a full system restart with manual, but safe, intervention from user
-		// 			DEBUG_Print("Unable to open contactors. You're officially fucked\r\n");
-		// 			_error(ERROR_CONTACTOR, true, false); // <- Should we hang?
-		// 		} else {
-		// 			// Go to idle
-		// 			mode = IDLE;
-		// 			charging_mode = CHRG_NONE;
-		// 			DEBUG_Print("Idle\r\n");
-		// 			requested_mode = REQ_NONE;
+		// Handle mode functionality
+		if (mode == IDLE) {
+			// Do nothing?
+		} else if (mode == CHARGING) {
+			// Do checks
+			// Tell Brusa to do appropriate thing
 
-		// 			UpdateBCMTimerFreq(BCM_POLL_IDLE_FREQ);
-		// 		}
-		// 	} else if (requested_mode == REQ_DRAINING) {
-		// 		// Able to drain?
-		// 		if (mode == IDLE && BCM_DRAIN_ALLOWED(pack_state.pack_v_min)) {
-		// 			// Close Contactors
-		// 			if (!Board_Contactors_On()) {
-		// 					// FUCK We can't turn the contactors on
-		// 					DEBUG_Print("Unable to open contactors. Returning to IDLE Mode.\r\n");
-		// 					_error(ERROR_CONTACTOR, true, false);
-		// 					requested_mode = REQ_NONE;
-		// 			} else {
-		// 				// Go to drain mode
-		// 				mode = DRAINING;
-		// 				charging_mode = CHRG_NONE;
-		// 				DEBUG_Print("Ready to drain\r\n");
-		// 				requested_mode = REQ_NONE;
+		} else if (mode == DRAINING) {
+			// Do checks
 
-		// 				UpdateBCMTimerFreq(BCM_POLL_DRAINING_FREQ);
-		// 			}
-		// 		} else {
-		// 			if (mode == CHARGING) {
-		// 				_error(ERROR_INCOMPATIBLE_MODE, true, false);
-		// 			} else {
-		// 				_error(ERROR_LOW_VOLTAGE, true, true);
-		// 			}
-		// 			requested_mode = REQ_NONE;
-		// 		}
-		// 	}
-		// }
-
-		// // Handle mode functionality
-		// if (mode == IDLE) {
-		// 	// Do nothing?
-		// } else if (mode == CHARGING) {
-		// 	// Do checks
-		// 	if (charging_mode == CHRG_CHARGING) {
-
-		// 	} else if (charging_mode == CHRG_BALANCING) {
-
-		// 	} else if (charging_mode == CHRG_NONE) {
-
-		// 	}
-		// 	// Tell Brusa to do appropriate thing
-
-		// } else if (mode == DRAINING) {
-		// 	// Do checks
-
-		// 	// If checks fail close contactors
-		// 		// Signal to whomever that they need to charge
-		// 	// Else
-		// 		// Write out the state of the pack for informative purposes
-		// }
+			// If checks fail close contactors
+				// Signal to whomever that they need to charge
+			// Else
+				// Write out the state of the pack for informative purposes
+		}
 
 		// [TODO]
 			// When should we be checking for unallowable voltages? At pack_state update?
