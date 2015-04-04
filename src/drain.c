@@ -4,6 +4,8 @@
 
 //INIT
 
+#include "drain.h"
+
 DRAIN_RET_STATUS_T (PACK_STATE pack_state, MODE_T next_mode){
 	switch(next_mode){
 		case IDLE:
