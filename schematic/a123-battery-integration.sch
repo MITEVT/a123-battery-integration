@@ -31,6 +31,7 @@ LIBS:contrib
 LIBS:valves
 LIBS:MITEVT_interface
 LIBS:MITEVT_mcontrollers
+LIBS:a123-battery-integration-cache
 EELAYER 25 0
 EELAYER END
 $Descr A4 11693 8268
@@ -627,4 +628,56 @@ Connection ~ 6150 800
 Wire Wire Line
 	6300 3700 6300 3600
 Connection ~ 6300 3600
+$Comp
+L C_Small C?
+U 1 1 552048CF
+P 7200 900
+F 0 "C?" H 7210 970 50  0000 L CNN
+F 1 "C_Small" H 7210 820 50  0000 L CNN
+F 2 "" H 7200 900 60  0000 C CNN
+F 3 "" H 7200 900 60  0000 C CNN
+	1    7200 900 
+	1    0    0    -1  
+$EndComp
+$Comp
+L C_Small C?
+U 1 1 55204918
+P 6400 900
+F 0 "C?" H 6410 970 50  0000 L CNN
+F 1 "C_Small" H 6410 820 50  0000 L CNN
+F 2 "" H 6400 900 60  0000 C CNN
+F 3 "" H 6400 900 60  0000 C CNN
+	1    6400 900 
+	1    0    0    -1  
+$EndComp
+$Comp
+L GND #PWR?
+U 1 1 55204956
+P 7200 1100
+F 0 "#PWR?" H 7200 850 60  0001 C CNN
+F 1 "GND" H 7200 950 60  0000 C CNN
+F 2 "" H 7200 1100 60  0000 C CNN
+F 3 "" H 7200 1100 60  0000 C CNN
+	1    7200 1100
+	1    0    0    -1  
+$EndComp
+$Comp
+L GND #PWR?
+U 1 1 55204990
+P 6400 1100
+F 0 "#PWR?" H 6400 850 60  0001 C CNN
+F 1 "GND" H 6400 950 60  0000 C CNN
+F 2 "" H 6400 1100 60  0000 C CNN
+F 3 "" H 6400 1100 60  0000 C CNN
+	1    6400 1100
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	7200 1000 7200 1100
+Wire Wire Line
+	6400 1100 6400 1000
+Connection ~ 7200 1100
+Connection ~ 7200 1000
+Connection ~ 6400 1000
+Connection ~ 6400 1100
 $EndSCHEMATC
