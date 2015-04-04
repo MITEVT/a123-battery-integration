@@ -29,3 +29,7 @@
 *.hex
 *.axf
 *.map
+
+# Utilities
+*.jar
+*.dia

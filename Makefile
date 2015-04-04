@@ -5,7 +5,6 @@
 # last change: 2012-01-08
 #
 # this makefile is based strongly on many examples found in the network
-# modified by EPONCE and NARANGO 2015-01-30
 #=============================================================================#
 
 #=============================================================================#
@@ -53,10 +52,12 @@ OUT_DIR = bin
 # test out folder
 OUT_DIR_TEST = testbin
 
-TEST_SRCS_DIRS = test $(UNITY_BASE)/src $(UNITY_BASE)/extras/fixture/src src/devices
+TEST_SRCS_DIRS = test $(UNITY_BASE)/src $(UNITY_BASE)/extras/fixture/src
 
 # c files for testing
-C_SRCS_TEST = $(wildcard $(patsubst %, %/*.$(C_EXT), . $(TEST_SRCS_DIRS)))
+C_SRCS_TEST = 	src/temptest.c \
+				$(wildcard $(patsubst %, %/*.$(C_EXT), . devices)) \
+				$(wildcard $(patsubst %, %/*.$(C_EXT), . $(TEST_SRCS_DIRS)))
 
 # C++ definitions (e.g. "-Dsymbol_with_value=0xDEAD -Dsymbol_without_value")
 CXX_DEFS =
@@ -69,7 +70,7 @@ AS_DEFS = -D__STARTUP_CLEAR_BSS -D__START=main -DRAM_MODE=1
 
 # include directories (absolute or relative paths to additional folders with
 # headers, current folder is always included)
-INC_DIRS_CROSS = ../lpc11cx4-io/lpc_chip_11cxx_lib/inc
+INC_DIRS_CROSS = ../lpc11cx4-io/lpc_chip_11cxx_lib/inc ../lpc11cx4-io/evt_lib/inc
 
 INC_DIRS_TEST = src test $(UNITY_BASE)/src $(UNITY_BASE)/extras/fixture/src
 
@@ -83,7 +84,7 @@ LIBS =
 
 # additional directories with source files (absolute or relative paths to
 # folders with source files, current folder is always included)
-SRCS_DIRS = ../lpc11cx4-io/lpc_chip_11cxx_lib/src src/ src/debug src/devices
+SRCS_DIRS = ../lpc11cx4-io/lpc_chip_11cxx_lib/src ../lpc11cx4-io/evt_lib/src src/
 
 # extension of C++ files
 CXX_EXT = cpp
@@ -131,15 +132,19 @@ C_STD = gnu89
 # Write Configuration
 #=============================================================================#
 
-COMPORT = /dev/tty.usbserial-FTH7MMTD
+# COMPORT = /dev/tty.usbserial-FTH7MMTD
+COMPORT = $(word 1, $(wildcard /dev/tty.usbserial-*) $(wildcard /dev/ttyUSB*))
+# ifeq ($(strip $(foo)),)
+# 	COMPORT = /dev/tty.usbserial-FTH7MMTD
+# endif
 BAUDRATE = 115200
 CLOCK_OSC = 12000
 
 #=============================================================================#
-# set the VPATH according to SRCS_DIRS and test sources
+# set the VPATH according to SRCS_DIRS
 #=============================================================================#
 
-VPATH = $(SRCS_DIRS) $(TEST_SRCS_DIRS)
+VPATH = $(SRCS_DIRS) test $(UNITY_BASE)/extras/fixture/src $(UNITY_BASE)/src devices
 
 #=============================================================================#
 # when using output folder, append trailing slash to its name
@@ -298,7 +303,7 @@ $(ELF) : $(OBJS_F)
 # compiling - C++ source -> objects
 #-----------------------------------------------------------------------------#
 
-*/%.o : %.$(CXX_EXT)
+$(OUT_DIR_F)%.o : %.$(CXX_EXT)
 	@echo 'Compiling file: $<'
 	$(CXX) -c $(CXX_FLAGS_F) $< -o $@
 	@echo ' '
@@ -307,17 +312,21 @@ $(ELF) : $(OBJS_F)
 # compiling - C source -> objects
 #-----------------------------------------------------------------------------#
 
-*/%.o : %.$(C_EXT)
+$(OUT_DIR_F)%.o : %.$(C_EXT)
 	@echo 'Compiling file: $<'
 	$(CC) -c $(C_FLAGS_F) $< -o $@
 	@echo ' '
 
+$(OUT_DIR_TEST_F)%.o : %.$(C_EXT)
+	@echo 'Compiling file: $<'
+	$(CC) -c $(C_FLAGS_F_TEST) $< -o $@
+	@echo ' '
 
 #-----------------------------------------------------------------------------#
 # assembling - ASM source -> objects
 #-----------------------------------------------------------------------------#
 
-*/%.o : %.$(AS_EXT)
+$(OUT_DIR_F)%.o : %.$(AS_EXT)
 	@echo 'Assembling file: $<'
 	$(AS) -c $(AS_FLAGS_F) $< -o $@
 	@echo ' '
@@ -380,8 +389,17 @@ make_test_output_dir :
 # Write to flash of chip
 #-----------------------------------------------------------------------------#
 
-writeflash: $(HEX)
-	 @lpc21isp -NXPARM $^ $(COMPORT) $(BAUDRATE) $(CLOCK_OSC)
+writeflash: all
+	@echo "Writing to" $(COMPORT)
+	@lpc21isp -NXPARM $(HEX) $(COMPORT) $(BAUDRATE) $(CLOCK_OSC)
+
+#-----------------------------------------------------------------------------#
+# Opening Picocom
+#-----------------------------------------------------------------------------#
+
+com:
+	@echo "Opening" $(COMPORT)
+	@picocom $(COMPORT)
 
 #=============================================================================#
 # make clean
@@ -391,7 +409,7 @@ clean:
 ifeq ($(strip $(OUT_DIR_F)), )
 	@echo 'Removing all generated output files'
 else
-	@echo 'Removing all generated output files from output directorys: $(OUT_DIR_F) and $(OUT_DIR_TEST_F)'
+	@echo 'Removing all generated output files from output directory: $(OUT_DIR_F)'
 endif
 ifneq ($(strip $(GENERATED)), )
 	$(RM) $(GENERATED)
@@ -403,7 +421,7 @@ endif
 # global exports
 #=============================================================================#
 
-.PHONY: all clean dependents
+.PHONY: all clean dependents writeflash
 
 .SECONDARY:
 
