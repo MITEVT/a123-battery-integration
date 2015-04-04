@@ -1,27 +1,22 @@
 //Progresses state of DRAIN state machine
-//	If function is called, current mode is DRAINING
+//	If function is called, current mode must be DRAINING
 //	next_mode is the next requested mode
 
-typedef enum {OPEN, CLOSED} CONTACTOR_STATUS;
+//INIT
 
-void open_contactor() {}
-void close_contactor() {}
-
-DRAIN_RET_STATUS_T stepDrain(PACK_STATE pack_state, MODE_T next_mode){
+DRAIN_RET_STATUS_T (PACK_STATE pack_state, MODE_T next_mode){
 	switch(next_mode){
 		case IDLE:
-			open_contactor();
 			break;
 
 		case CHARGING:
-			open_contactor();
+			//Check if can continue drain
+			//Return output state request
 			break;
 
 		case DRAINING:
-			if(BCM_DRAIN_ALLOWED(pack_state.pack_v_min)) {
-
-			}
-			close_contactor();
+			//Check if can continue drain
+			//Return output state request, contactor = close
 			break;
 	}
 }
