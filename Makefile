@@ -52,12 +52,11 @@ OUT_DIR = bin
 # test out folder
 OUT_DIR_TEST = testbin
 
+# directories for testing sources
 TEST_SRCS_DIRS = test $(UNITY_BASE)/src $(UNITY_BASE)/extras/fixture/src
 
 # c files for testing
-C_SRCS_TEST = 	src/temptest.c \
-				$(wildcard $(patsubst %, %/*.$(C_EXT), . devices)) \
-				$(wildcard $(patsubst %, %/*.$(C_EXT), . $(TEST_SRCS_DIRS)))
+C_SRCS_TEST = 	$(wildcard $(patsubst %, %/*.$(C_EXT), . $(TEST_SRCS_DIRS)))
 
 # C++ definitions (e.g. "-Dsymbol_with_value=0xDEAD -Dsymbol_without_value")
 CXX_DEFS =
@@ -72,8 +71,6 @@ AS_DEFS = -D__STARTUP_CLEAR_BSS -D__START=main -DRAM_MODE=1
 # headers, current folder is always included)
 INC_DIRS_CROSS = ../lpc11cx4-library/lpc_chip_11cxx_lib/inc ../lpc11cx4-library/evt_lib/inc inc
 
-INC_DIRS_TEST = src test $(UNITY_BASE)/src $(UNITY_BASE)/extras/fixture/src
-
 # library directories (absolute or relative paths to additional folders with
 # libraries)
 LIB_DIRS = 
@@ -85,6 +82,9 @@ LIBS =
 # additional directories with source files (absolute or relative paths to
 # folders with source files, current folder is always included)
 SRCS_DIRS = ../lpc11cx4-library/lpc_chip_11cxx_lib/src ../lpc11cx4-library/evt_lib/src src
+
+# include directories for test
+INC_DIRS_TEST = $(INC_DIRS_CROSS) $(SRCS_DIRS) test $(UNITY_BASE)/src $(UNITY_BASE)/extras/fixture/src
 
 # extension of C++ files
 CXX_EXT = cpp
@@ -240,7 +240,7 @@ AS_FLAGS_F_TEST = $(AS_FLAGS) $(AS_DEFS) -MD -MP -MF $(OUT_DIR_F)$(@F:.o=.d) $(I
 LD_FLAGS_F_TEST = $(LIB_DIRS_F_TEST)
 
 #contents of output directory
-GENERATED = $(wildcard $(patsubst %, $(OUT_DIR_F)*.%, bin d dmp elf hex lss lst map o)) $(wildcard $(patsubst %, $(OUT_DIR_TEST_F)*.%, bin d dmp elf hex lss lst map o)) $(TEST_TARGET)
+GENERATED = $(wildcard $(patsubst %, $(OUT_DIR_F)*.%, bin d dmp elf hex lss lst map o)) $(wildcard $(patsubst %, $(OUT_DIR_TEST_F)*.%, bin d dmp elf hex lss lst map o))
 
 
 #=============================================================================#
@@ -410,6 +410,11 @@ ifeq ($(strip $(OUT_DIR_F)), )
 	@echo 'Removing all generated output files'
 else
 	@echo 'Removing all generated output files from output directory: $(OUT_DIR_F)'
+endif
+ifeq ($(strip $(OUT_DIR_TEST_F)), )
+	@echo 'Removing all generated output files'
+else
+	@echo 'Removing all generated output files from output directory: $(OUT_DIR_TEST_F)'
 endif
 ifneq ($(strip $(GENERATED)), )
 	$(RM) $(GENERATED)
