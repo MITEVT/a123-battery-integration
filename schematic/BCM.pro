@@ -1,6 +1,10 @@
-update=Saturday, April 11, 2015 'PMt' 02:19:48 PM
+update=Saturday, April 25, 2015 'PMt' 03:06:06 PM
 version=1
 last_client=kicad
+[general]
+version=1
+RootSch=
+BoardNm=
 [cvpcb]
 version=1
 NetIExt=net
@@ -25,11 +29,9 @@ SolderMaskMinWidth=0.000000000000
 DrawSegmentWidth=0.200000000000
 BoardOutlineThickness=0.100000000000
 ModuleOutlineThickness=0.150000000000
-[general]
-version=1
 [eeschema]
 version=1
-LibDir=
+LibDir=../../../../Documents/EVT/EVT_KICAD_LIBS
 [eeschema/libraries]
 LibName1=power
 LibName2=device
@@ -61,5 +63,7 @@ LibName27=opto
 LibName28=atmel
 LibName29=contrib
 LibName30=valves
-LibName31=/Users/jimmy/Documents/MIT/EVT/EVT_KICAD_LIBS/MITEVT_interface
-LibName32=/Users/jimmy/Documents/MIT/EVT/EVT_KICAD_LIBS/MITEVT_mcontrollers
+LibName31=MITEVT_interface
+LibName32=MITEVT_mcontrollers
+LibName33=MITEVT_OPTO
+LibName34=MITEVT_REG
