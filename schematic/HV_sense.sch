@@ -33,6 +33,7 @@ LIBS:MITEVT_mcontrollers
 LIBS:MITEVT_OPTO
 LIBS:MITEVT_REG
 LIBS:MITEVT_ANALOG
+LIBS:BCM-cache
 EELAYER 25 0
 EELAYER END
 $Descr A4 11693 8268
@@ -58,7 +59,7 @@ F 3 "" H 5200 3200 60  0000 C CNN
 	1    5200 3200
 	1    0    0    -1  
 $EndComp
-Text HLabel 1700 2500 0    60   Input ~ 0
+Text HLabel 1050 2500 0    60   Input ~ 0
 HV+
 Text HLabel 1100 3950 0    60   Input ~ 0
 HV-
@@ -317,8 +318,6 @@ Wire Wire Line
 	2450 2500 2950 2500
 Connection ~ 2700 2500
 Wire Wire Line
-	1700 2500 2150 2500
-Wire Wire Line
 	5000 3500 2800 3500
 Wire Wire Line
 	2800 3500 2800 2500
@@ -366,4 +365,6 @@ F 3 "" H 7150 2800 60  0000 C CNN
 	1    7150 2800
 	0    1    1    0   
 $EndComp
+Text Notes 600  2300 0    60   ~ 0
+This won't work yet. need to attenuate things\n
 $EndSCHEMATC
