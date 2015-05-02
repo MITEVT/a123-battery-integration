@@ -1,4 +1,4 @@
-update=Saturday, April 25, 2015 'PMt' 03:06:06 PM
+update=Saturday, May 02, 2015 'AMt' 11:32:24 AM
 version=1
 last_client=kicad
 [general]
@@ -31,7 +31,7 @@ BoardOutlineThickness=0.100000000000
 ModuleOutlineThickness=0.150000000000
 [eeschema]
 version=1
-LibDir=../../../../Documents/EVT/EVT_KICAD_LIBS
+LibDir=../../EVT_KICAD_LIBS
 [eeschema/libraries]
 LibName1=power
 LibName2=device
