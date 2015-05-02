@@ -1,7 +1,11 @@
 #ifndef _BOARD_H_
 #define _BOARD_H_
 
-#include "types.h"
+#include "chip.h"
+#include "state_types.h"
+#include "mcp2515.h"
+#include "brusa.h"
+#include "a123mbb.h"
 #include "util.h"
 #include "charge.h"
 #include "drain.h"

@@ -38,7 +38,7 @@
 // ------------------------------------------------
 // Global Variables
 
-volatile uint32_t msTicks; // Milliseconds 
+volatile uint64_t msTicks; // Milliseconds 
 
 uint8_t Rx_Buf[UART_RX_BUF_SIZE];
 
@@ -62,8 +62,8 @@ static MBB_STD_T mbb_std;
 static MODE_T mode = IDLE;
 static MODE_REQUEST_T requested_mode = REQ_NONE;
 
-static PACK_STATE pack_state;
-static OUTPUT_STATE out_state;
+static PACK_STATE_T pack_state;
+static OUTPUT_STATE_T out_state;
 
 // ------------------------------------------------
 // Helper functions that don't belong in util because systick and printing
@@ -98,7 +98,6 @@ void _error(uint8_t errorNo, bool flashLED, bool hang) {
 }
 
 MODE_T getNextMode(MODE_REQUEST_T requested_mode, MODE_T mode) {
-		// Handle Requests
 	if (requested_mode == REQ_IDLE) {
 		return IDLE;
 	} else if (requested_mode == REQ_NONE) {
@@ -122,6 +121,7 @@ MODE_T getNextMode(MODE_REQUEST_T requested_mode, MODE_T mode) {
 
 void SysTick_Handler(void) {
 	msTicks++;
+	pack_state.msTicks = msTicks;
 }
 
 void TIMER32_0_IRQHandler(void) {
@@ -253,8 +253,8 @@ void Init_Globals(void) {
 	pack_state.messagesReceived = 0;
 
 	out_state.balance_voltage = BCM_BALANCE_OFF;
-	out_state.brusa_voltage = 0;
-	out_state.brusa_current = 0;
+	out_state.brusa_deci_volts = 0;
+	out_state.brusa_deci_amps = 0;
 	out_state.close_contactors = false;
 }
 
@@ -381,12 +381,13 @@ int main(void)
 			}
 		}
 
+		// [TODO] Actually write this correctly
 		MODE_T old_mode = mode;
 		mode = getNextMode(requested_mode, mode);
 		if (old_mode != mode) {
 			// Changed mode
 			if (old_mode == CHARGING) {
-				while(Charge_Step(&pack_state, mode, &out_state) != CHRG_EXITED) {
+				while(Charge_Step(&pack_state, mode, &out_state) != CHRG_OFF) {
 					if (!out_state.close_contactors) {
 						Board_Contactors_Off();
 					}
@@ -406,20 +407,11 @@ int main(void)
 		if (mode == IDLE) {
 			// Do nothing?
 		} else if (mode == CHARGING) {
-			// Do checks
-			// Tell Brusa to do appropriate thing
+			// Update Charge SM
 
 		} else if (mode == DRAINING) {
-			// Do checks
-
-			// If checks fail close contactors
-				// Signal to whomever that they need to charge
-			// Else
-				// Write out the state of the pack for informative purposes
+			// Update Drain SM
 		}
-
-		// [TODO]
-			// When should we be checking for unallowable voltages? At pack_state update?
 
 		// uint8_t count;
 		// if ((count = Chip_UART_Read(LPC_USART, Rx_Buf, 8)) != 0) {

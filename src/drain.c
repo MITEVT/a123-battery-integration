@@ -3,7 +3,7 @@
 static DRAIN_MODE_T mode = DRAIN_INIT;
 
 //Progresses state of DRAIN state machine
-DRAIN_STATUS_T Drain_Step(PACK_STATE* pack_state, MODE_T req_mode, OUTPUT_STATE* os){
+DRAIN_STATUS_T Drain_Step(PACK_STATE_T* pack_state, MODE_T req_mode, OUTPUT_STATE_T* os){
 	switch(req_mode){
 		case IDLE:
 			os->close_contactors = false;
