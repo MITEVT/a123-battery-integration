@@ -10,7 +10,6 @@ LIBS:cmos4000
 LIBS:adc-dac
 LIBS:memory
 LIBS:xilinx
-LIBS:special
 LIBS:microcontrollers
 LIBS:dsp
 LIBS:microchip
@@ -329,4 +328,8 @@ Connection ~ 3200 2300
 Connection ~ 2950 2500
 Connection ~ 2950 2700
 Connection ~ 3650 2600
+Connection ~ 3400 1900
+Connection ~ 3100 1900
+Connection ~ 2150 2500
+Connection ~ 2450 2500
 $EndSCHEMATC

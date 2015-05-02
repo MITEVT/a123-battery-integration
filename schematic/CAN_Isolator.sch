@@ -10,7 +10,6 @@ LIBS:cmos4000
 LIBS:adc-dac
 LIBS:memory
 LIBS:xilinx
-LIBS:special
 LIBS:microcontrollers
 LIBS:dsp
 LIBS:microchip
@@ -49,4 +48,15 @@ Comment2 ""
 Comment3 ""
 Comment4 ""
 $EndDescr
+$Comp
+L ISO1050 U?
+U 1 1 55453F28
+P 4150 2700
+F 0 "U?" H 3800 3050 60  0000 C CNN
+F 1 "ISO1050" H 4450 3050 60  0000 C CNN
+F 2 "" H 4450 3050 60  0000 C CNN
+F 3 "" H 4450 3050 60  0000 C CNN
+	1    4150 2700
+	1    0    0    -1  
+$EndComp
 $EndSCHEMATC
