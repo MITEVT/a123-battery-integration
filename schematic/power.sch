@@ -33,6 +33,7 @@ LIBS:MITEVT_interface
 LIBS:MITEVT_mcontrollers
 LIBS:MITEVT_OPTO
 LIBS:MITEVT_REG
+LIBS:BCM-cache
 EELAYER 25 0
 EELAYER END
 $Descr A4 11693 8268
@@ -125,21 +126,29 @@ F 3 "" H 3000 2800 60  0000 C CNN
 	1    0    0    -1  
 $EndComp
 Wire Wire Line
-	2600 1750 1900 1750
+	2600 1750 2000 1750
 Wire Wire Line
-	3000 2050 3000 2300
+	2000 1750 1900 1750
 Wire Wire Line
-	3400 1750 4150 1750
+	3000 2050 3000 2150
 Wire Wire Line
-	2200 2150 3800 2150
+	3000 2150 3000 2300
+Wire Wire Line
+	3400 1750 3800 1750
+Wire Wire Line
+	3800 1750 4150 1750
+Wire Wire Line
+	2200 2150 2500 2150
+Wire Wire Line
+	2500 2150 3000 2150
+Wire Wire Line
+	3000 2150 3500 2150
+Wire Wire Line
+	3500 2150 3800 2150
 Connection ~ 3000 2150
 Connection ~ 2500 2150
 Connection ~ 3500 2150
 Connection ~ 3800 1750
-Wire Wire Line
-	1900 1750 1900 1700
-Wire Wire Line
-	4150 1750 4150 1700
 Connection ~ 2000 1750
 $Comp
 L GND #PWR202
@@ -197,19 +206,33 @@ F 3 "" H 3800 2950 60  0000 C CNN
 	1    0    0    -1  
 $EndComp
 Wire Wire Line
-	3000 3050 3000 3300
+	3000 3050 3000 3150
 Wire Wire Line
-	3400 2750 4150 2750
+	3000 3150 3000 3300
 Wire Wire Line
-	2200 3150 3800 3150
+	3400 2750 3800 2750
+Wire Wire Line
+	3800 2750 4150 2750
+Wire Wire Line
+	2200 3150 2500 3150
+Wire Wire Line
+	2500 3150 3000 3150
+Wire Wire Line
+	3000 3150 3500 3150
+Wire Wire Line
+	3500 3150 3800 3150
 Connection ~ 3000 3150
 Connection ~ 2500 3150
 Connection ~ 3500 3150
 Connection ~ 3800 2750
 Wire Wire Line
-	4150 2750 4150 2700
-Wire Wire Line
 	2000 1750 2000 2750
 Wire Wire Line
 	2000 2750 2600 2750
+Text HLabel 1900 1750 0    60   Input ~ 0
+15V
+Text HLabel 4150 1750 2    60   Output ~ 0
+3.3V
+Text HLabel 4150 2750 2    60   Output ~ 0
+5V
 $EndSCHEMATC
