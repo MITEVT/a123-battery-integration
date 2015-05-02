@@ -96,17 +96,6 @@ Wire Wire Line
 	7100 3350 7200 3350
 Wire Wire Line
 	7200 3350 7200 3450
-$Comp
-L +3.3V #PWR?
-U 1 1 554504C0
-P 7200 4250
-F 0 "#PWR?" H 7200 4210 30  0001 C CNN
-F 1 "+3.3V" H 7200 4360 30  0000 C CNN
-F 2 "" H 7200 4250 60  0000 C CNN
-F 3 "" H 7200 4250 60  0000 C CNN
-	1    7200 4250
-	1    0    0    -1  
-$EndComp
 Wire Wire Line
 	7100 4350 7200 4350
 Wire Wire Line
@@ -145,19 +134,19 @@ F 3 "" H 7150 3150 30  0000 C CNN
 	0    1    1    0   
 $EndComp
 Wire Wire Line
-	6900 3150 6400 3150
+	6400 3150 7000 3150
 Connection ~ 6400 3500
 Wire Wire Line
-	7400 3150 7700 3150
+	7300 3150 7700 3150
 Wire Wire Line
 	7700 2800 7700 3850
 Wire Wire Line
 	7550 3850 7900 3850
 Wire Wire Line
-	6950 2800 6400 2800
+	6400 2800 7000 2800
 Connection ~ 6400 3150
 Wire Wire Line
-	7350 2800 7700 2800
+	7300 2800 7700 2800
 Connection ~ 7700 3150
 Connection ~ 7700 3850
 $Comp
@@ -190,23 +179,12 @@ Wire Wire Line
 	3200 2100 3300 2100
 Wire Wire Line
 	3300 2100 3300 2200
-$Comp
-L +3.3V #PWR?
-U 1 1 5545076E
-P 3300 3000
-F 0 "#PWR?" H 3300 2960 30  0001 C CNN
-F 1 "+3.3V" H 3300 3110 30  0000 C CNN
-F 2 "" H 3300 3000 60  0000 C CNN
-F 3 "" H 3300 3000 60  0000 C CNN
-	1    3300 3000
-	1    0    0    -1  
-$EndComp
 Wire Wire Line
 	3200 3100 3300 3100
 Wire Wire Line
 	3300 3100 3300 3000
 Wire Wire Line
-	3650 2600 4000 2600
+	3650 2600 4100 2600
 $Comp
 L R R?
 U 1 1 554507E6
@@ -219,29 +197,18 @@ F 3 "" H 4250 2600 30  0000 C CNN
 	0    1    1    0   
 $EndComp
 Wire Wire Line
-	4500 2600 5000 2600
-$Comp
-L +3.3V #PWR?
-U 1 1 55450858
-P 4800 2900
-F 0 "#PWR?" H 4800 2860 30  0001 C CNN
-F 1 "+3.3V" H 4800 3010 30  0000 C CNN
-F 2 "" H 4800 2900 60  0000 C CNN
-F 3 "" H 4800 2900 60  0000 C CNN
-	1    4800 2900
-	1    0    0    -1  
-$EndComp
+	4400 2600 5000 2600
 Wire Wire Line
 	4800 2950 4800 3050
 Wire Wire Line
 	4800 3050 5000 3050
 Wire Wire Line
-	3450 1900 3800 1900
+	3400 1900 3800 1900
 Wire Wire Line
 	3800 1900 3800 2600
 Connection ~ 3800 2600
 Wire Wire Line
-	3050 1900 2700 1900
+	2700 1900 3100 1900
 Wire Wire Line
 	2700 1900 2700 2500
 Wire Wire Line
@@ -277,10 +244,10 @@ F 3 "" H 2300 2500 30  0000 C CNN
 	0    1    1    0   
 $EndComp
 Wire Wire Line
-	2550 2500 2950 2500
+	2450 2500 2950 2500
 Connection ~ 2700 2500
 Wire Wire Line
-	2050 2500 1700 2500
+	1700 2500 2150 2500
 NoConn ~ 8200 350 
 $Comp
 L C C?
@@ -311,4 +278,55 @@ Wire Wire Line
 Wire Wire Line
 	2800 3500 2800 2500
 Connection ~ 2800 2500
+$Comp
+L +3.3VP #PWR?
+U 1 1 554534A0
+P 4800 2950
+F 0 "#PWR?" H 4850 2980 20  0001 C CNN
+F 1 "+3.3VP" H 4800 3040 30  0000 C CNN
+F 2 "" H 4800 2950 60  0000 C CNN
+F 3 "" H 4800 2950 60  0000 C CNN
+	1    4800 2950
+	1    0    0    -1  
+$EndComp
+$Comp
+L +3.3VP #PWR?
+U 1 1 554534D5
+P 3300 3000
+F 0 "#PWR?" H 3350 3030 20  0001 C CNN
+F 1 "+3.3VP" H 3300 3090 30  0000 C CNN
+F 2 "" H 3300 3000 60  0000 C CNN
+F 3 "" H 3300 3000 60  0000 C CNN
+	1    3300 3000
+	1    0    0    -1  
+$EndComp
+$Comp
+L +3.3VP #PWR?
+U 1 1 5545350A
+P 7200 4250
+F 0 "#PWR?" H 7250 4280 20  0001 C CNN
+F 1 "+3.3VP" H 7200 4340 30  0000 C CNN
+F 2 "" H 7200 4250 60  0000 C CNN
+F 3 "" H 7200 4250 60  0000 C CNN
+	1    7200 4250
+	1    0    0    -1  
+$EndComp
+Connection ~ 7100 3550
+Connection ~ 6850 3750
+Connection ~ 6850 3950
+Connection ~ 7550 3850
+Connection ~ 7100 4150
+Connection ~ 7300 3150
+Connection ~ 7000 3150
+Connection ~ 7000 2800
+Connection ~ 7300 2800
+Connection ~ 5000 2600
+Connection ~ 5000 3050
+Connection ~ 5000 3500
+Connection ~ 5000 3950
+Connection ~ 3200 2900
+Connection ~ 3200 2300
+Connection ~ 2950 2500
+Connection ~ 2950 2700
+Connection ~ 3650 2600
 $EndSCHEMATC
