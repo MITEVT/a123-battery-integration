@@ -1,4 +1,4 @@
-update=Saturday, April 25, 2015 'PMt' 03:06:06 PM
+update=Saturday, May 02, 2015 'PMt' 12:54:15 PM
 version=1
 last_client=kicad
 [general]
@@ -67,3 +67,4 @@ LibName31=MITEVT_interface
 LibName32=MITEVT_mcontrollers
 LibName33=MITEVT_OPTO
 LibName34=MITEVT_REG
+LibName35=MITEVT_ANALOG
