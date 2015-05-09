@@ -73,9 +73,15 @@ CHARGING_STATUS_T Charge_Step(PACK_STATE_T *pack_state, MODE_REQUEST_T req_mode,
 				out_state->brusa_cAmps = max_charge_cAmps;
 			}
 
-			if (BCM_BAL_ENABLE(pack_state->pack_max_mVolts, pack_state->pack_min_mVolts)) {
+			if (!balancing && BCM_BAL_ENABLE(pack_state->pack_max_mVolts, pack_state->pack_min_mVolts)) {
+				balancing = true;
+			} else if (balancing && BCM_BAL_DISABLE(pack_state->pack_max_mVolts, pack_state->pack_min_mVolts)) {
+				balancing = false;
+			}
+
+			if (balancing) {
 				out_state->balance_mVolts = pack_state->pack_min_mVolts;
-			} else if (BCM_BAL_DISABLE(pack_state->pack_max_mVolts, pack_state->pack_min_mVolts)) {
+			} else {
 				out_state->balance_mVolts = BCM_BALANCE_OFF;
 			}
 			break;
@@ -91,13 +97,13 @@ CHARGING_STATUS_T Charge_Step(PACK_STATE_T *pack_state, MODE_REQUEST_T req_mode,
 				out_state->brusa_mVolts = max_pack_mVolts;
 				out_state->brusa_cAmps = max_charge_cAmps;
 				if (pack_state->pack_cAmps_in < 100) {
-					if ((pack_state->msTicks - lastTimeAbove1A) > 60000) { 	// About 60 Seconds
+					if ((pack_state->msTicks - lastTimeAbove1A) >= 60000) { 	// About 60 Seconds
 						// Done Charging
 						out_state->brusa_mVolts = 0;
 						out_state->brusa_cAmps = 0;
 						out_state->balance_mVolts = BCM_BALANCE_OFF;
 						mode = CHRG_DONE;
-						if (BCM_BAL_ENABLE(pack_state->pack_max_mVolts, pack_state->pack_min_mVolts)) {
+						if (balancing) {
 							return CHRG_ERROR;
 						}
 						break;
@@ -107,9 +113,15 @@ CHARGING_STATUS_T Charge_Step(PACK_STATE_T *pack_state, MODE_REQUEST_T req_mode,
 				}
 			}
 
-			if (BCM_BAL_ENABLE(pack_state->pack_max_mVolts, pack_state->pack_min_mVolts)) {
+			if (!balancing && BCM_BAL_ENABLE(pack_state->pack_max_mVolts, pack_state->pack_min_mVolts)) {
+				balancing = true;
+			} else if (balancing && BCM_BAL_DISABLE(pack_state->pack_max_mVolts, pack_state->pack_min_mVolts)) {
+				balancing = false;
+			}
+
+			if (balancing) {
 				out_state->balance_mVolts = pack_state->pack_min_mVolts;
-			} else if (BCM_BAL_DISABLE(pack_state->pack_max_mVolts, pack_state->pack_min_mVolts)) {
+			} else {
 				out_state->balance_mVolts = BCM_BALANCE_OFF;
 			}
 			break;

@@ -225,7 +225,133 @@ TEST(Charge_Test, test_to_cc_to_cv_w_bal) {
 	TEST_ASSERT_EQUAL(CURRENT_LIMIT, out_state.brusa_cAmps);
 	TEST_ASSERT_EQUAL(true, out_state.close_contactors);
 	TEST_ASSERT_EQUAL(pack_state.pack_min_mVolts, out_state.balance_mVolts);
+}
 
+TEST(Charge_Test, test_to_cc_to_cv_w_out_bal) {
+	pack_state.pack_min_mVolts = 3400;
+	pack_state.pack_max_mVolts = 3400;
+
+	// Charge State Machine should start out OFF
+	TEST_ASSERT_EQUAL(CHRG_OFF, Charge_GetMode());
+
+	// Request Charging Mode
+	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_CHARGING, &out_state));
+	TEST_ASSERT_EQUAL(CHRG_INIT, Charge_GetMode());
+	TEST_ASSERT_EQUAL(0, out_state.brusa_cAmps);
+	TEST_ASSERT_EQUAL(0, out_state.brusa_mVolts);
+	TEST_ASSERT_EQUAL(true, out_state.close_contactors);
+
+
+	// Turn contactors on, set pack_v_max to within CC Range
+	// Mode should change to CC, Output current should be max current 
+	// and output voltage should be CC voltage
+	// should be balancing
+	pack_state.contactors_closed = true;
+	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
+	TEST_ASSERT_EQUAL(CHRG_CC, Charge_GetMode());
+	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
+	TEST_ASSERT_EQUAL(CHRG_CC, Charge_GetMode());
+	TEST_ASSERT_EQUAL(CC_PACK_MVOLTS, out_state.brusa_mVolts);
+	TEST_ASSERT_EQUAL(CURRENT_LIMIT, out_state.brusa_cAmps);
+	TEST_ASSERT_EQUAL(true, out_state.close_contactors);
+	TEST_ASSERT_EQUAL(BCM_BALANCE_OFF, out_state.balance_mVolts);
+
+	// Change pack state to be in cv range
+	pack_state.pack_min_mVolts = 3598;
+	pack_state.pack_max_mVolts = 3600;
+	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
+	TEST_ASSERT_EQUAL(CHRG_CV, Charge_GetMode());
+	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
+	TEST_ASSERT_EQUAL(CHRG_CV, Charge_GetMode());
+	TEST_ASSERT_EQUAL(CV_PACK_MVOLTS, out_state.brusa_mVolts);
+	TEST_ASSERT_EQUAL(CURRENT_LIMIT, out_state.brusa_cAmps);
+	TEST_ASSERT_EQUAL(true, out_state.close_contactors);
+	TEST_ASSERT_EQUAL(BCM_BALANCE_OFF, out_state.balance_mVolts);
+}
+
+TEST(Charge_Test, test_to_cv_to_done) {
+	pack_state.pack_min_mVolts = 3600;
+	pack_state.pack_max_mVolts = 3600;
+	pack_state.pack_cAmps_in = 50;
+
+	// Charge State Machine should start out OFF
+	TEST_ASSERT_EQUAL(CHRG_OFF, Charge_GetMode());
+
+	// Request Charging Mode
+	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_CHARGING, &out_state));
+	TEST_ASSERT_EQUAL(CHRG_INIT, Charge_GetMode());
+	TEST_ASSERT_EQUAL(0, out_state.brusa_cAmps);
+	TEST_ASSERT_EQUAL(0, out_state.brusa_mVolts);
+	TEST_ASSERT_EQUAL(true, out_state.close_contactors);
+
+	// Turn contactors on, set pack_v_max to within CV Range
+	// Mode should change to CV, Output current should be max current 
+	// and output voltage should be CV voltage
+	// should not be balancing
+	pack_state.contactors_closed = true;
+	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
+	TEST_ASSERT_EQUAL(CHRG_CV, Charge_GetMode());
+	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
+	TEST_ASSERT_EQUAL(CHRG_CV, Charge_GetMode());
+	TEST_ASSERT_EQUAL(CV_PACK_MVOLTS, out_state.brusa_mVolts);
+	TEST_ASSERT_EQUAL(CURRENT_LIMIT, out_state.brusa_cAmps);
+	TEST_ASSERT_EQUAL(true, out_state.close_contactors);
+	TEST_ASSERT_EQUAL(BCM_BALANCE_OFF, out_state.balance_mVolts);
+
+	// Pack should stop charging
+	pack_state.msTicks = 60000;
+	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
+	TEST_ASSERT_EQUAL(CHRG_DONE, Charge_GetMode());
+}
+
+TEST(Charge_Test, test_fully_balance) {
+	pack_state.pack_min_mVolts = 3400;
+	pack_state.pack_max_mVolts = 3405;
+
+	// Charge State Machine should start out OFF
+	TEST_ASSERT_EQUAL(CHRG_OFF, Charge_GetMode());
+
+	// Request Charging Mode
+	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_CHARGING, &out_state));
+	TEST_ASSERT_EQUAL(CHRG_INIT, Charge_GetMode());
+	TEST_ASSERT_EQUAL(0, out_state.brusa_cAmps);
+	TEST_ASSERT_EQUAL(0, out_state.brusa_mVolts);
+	TEST_ASSERT_EQUAL(true, out_state.close_contactors);
+
+	// Turn contactors on, set pack_v_max to within CC Range
+	// Mode should change to CC, Output current should be max current 
+	// and output voltage should be CC voltage
+	// should be balancing to min val
+	pack_state.contactors_closed = true;
+	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
+	TEST_ASSERT_EQUAL(CHRG_CC, Charge_GetMode());
+	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
+	TEST_ASSERT_EQUAL(CHRG_CC, Charge_GetMode());
+	TEST_ASSERT_EQUAL(CC_PACK_MVOLTS, out_state.brusa_mVolts);
+	TEST_ASSERT_EQUAL(CURRENT_LIMIT, out_state.brusa_cAmps);
+	TEST_ASSERT_EQUAL(true, out_state.close_contactors);
+	TEST_ASSERT_EQUAL(pack_state.pack_min_mVolts, out_state.balance_mVolts);
+
+	// Should keep balancing
+	int i;
+	for (i = 1; i < 4; i++) {
+		pack_state.pack_min_mVolts = 3400 + i;
+		TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
+		TEST_ASSERT_EQUAL(CHRG_CC, Charge_GetMode());
+		TEST_ASSERT_EQUAL(CC_PACK_MVOLTS, out_state.brusa_mVolts);
+		TEST_ASSERT_EQUAL(CURRENT_LIMIT, out_state.brusa_cAmps);
+		TEST_ASSERT_EQUAL(true, out_state.close_contactors);
+		TEST_ASSERT_EQUAL(pack_state.pack_min_mVolts, out_state.balance_mVolts);
+	}
+
+	// Should stop balancing
+	pack_state.pack_min_mVolts = 3405;
+	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
+	TEST_ASSERT_EQUAL(CHRG_CC, Charge_GetMode());
+	TEST_ASSERT_EQUAL(CC_PACK_MVOLTS, out_state.brusa_mVolts);
+	TEST_ASSERT_EQUAL(CURRENT_LIMIT, out_state.brusa_cAmps);
+	TEST_ASSERT_EQUAL(true, out_state.close_contactors);
+	TEST_ASSERT_EQUAL(BCM_BALANCE_OFF, out_state.balance_mVolts);	
 }
 
 TEST_GROUP_RUNNER(Charge_Test)
@@ -236,4 +362,7 @@ TEST_GROUP_RUNNER(Charge_Test)
   	RUN_TEST_CASE(Charge_Test, test_to_cv_w_bal);
   	RUN_TEST_CASE(Charge_Test, test_to_cv_w_out_bal);
   	RUN_TEST_CASE(Charge_Test, test_to_cc_to_cv_w_bal);
+  	RUN_TEST_CASE(Charge_Test, test_to_cc_to_cv_w_out_bal);
+  	RUN_TEST_CASE(Charge_Test, test_to_cv_to_done);
+  	RUN_TEST_CASE(Charge_Test, test_fully_balance);
 }
