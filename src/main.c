@@ -51,8 +51,8 @@ static CCAN_MSG_OBJ_T mcp_msg_obj;
 static NLG5_CTL_T brusa_control;
 static NLG5_STATUS_T brusa_status;
 static NLG5_ACT_I_T brusa_actual_1;
-// static NLG5_ACT_II_T brusa_actual_2;
-// static NLG5_TEMP_T brusa_temp;
+static NLG5_ACT_II_T brusa_actual_2;
+static NLG5_TEMP_T brusa_temp;
 
 // On-Chip CCAN
 static CCAN_MSG_OBJ_T can_msg_obj;
@@ -85,19 +85,21 @@ void _error(uint8_t errorNo, bool flashLED, bool hang) {
 	DEBUG_Print(")\r\n");
 
 	do { // Hang forever
+		DEBUG_Print("Entered do");
 		if (flashLED) {
 			uint8_t i;
 			for (i = 0; i < errorNo; i++) {
 				Board_LED_Off();
-				_delay_ms(800);
+				_delay_ms(500);
 				Board_LED_On();
-				_delay_ms(800);
+				_delay_ms(500);
 			}
 		}
 		_delay_ms(1500);
+		Board_LED_Off();
 	} while(hang);
 
-	Board_LED_Off();
+	Board_LED_On();
 }
 
 MODE_T getNextMode(MODE_REQUEST_T requested_mode, MODE_T mode) {
@@ -196,8 +198,12 @@ void CAN_tx(uint8_t msg_obj_num) {
 /*	CAN error callback */
 /*	Function is executed by the Callback handler after
     an error has occured on the CAN bus */
+
+// NOTE: Because these callbacks are called by an interrupt routine
+// 		CANNOT use anything with msTicks, including _error, so should set a f
 void CAN_error(uint32_t error_info) {
-	_error(error_info, true, false);
+	DEBUG_Print("On-chip CAN Error\n\r");
+	// _error(error_info, true, false);
 }
 
 // ------------------------------------------------
@@ -343,18 +349,18 @@ int main(void)
 	while(1) {
 		uint8_t count;
 		if ((count = Chip_UART_Read(LPC_USART, Rx_Buf, UART_RX_BUF_SIZE)) != 0) {
-			DEBUG_Write(Rx_Buf, count);
+			//DEBUG_Write(Rx_Buf, count);
 			switch (Rx_Buf[0]) {
 				case 'a':
-					itoa(num2mVolts(pack_state.pack_min_mVolts), str, 10);
+					itoa(pack_state.pack_min_mVolts, str, 10);
 					DEBUG_Print("Pack Min Voltage: ");
 					DEBUG_Print(str);
 					DEBUG_Print("\r\n");
-					itoa(num2mVolts(pack_state.pack_max_mVolts), str, 10);
+					itoa(pack_state.pack_max_mVolts, str, 10);
 					DEBUG_Print("Pack Max Voltage: ");
 					DEBUG_Print(str);
 					DEBUG_Print("\r\n");
-					itoa(num2mVolts(pack_state.pack_avg_mVolts), str, 10);
+					itoa(pack_state.pack_avg_mVolts, str, 10);
 					DEBUG_Print("Pack Avg Voltage: ");
 					DEBUG_Print(str);
 					DEBUG_Print("\r\n");
@@ -429,10 +435,28 @@ int main(void)
 			brusa_control.output_cAmps = out_state.brusa_cAmps;
 			Chip_TIMER_Enable(LPC_TIMER32_0);
 		} else {
-			Chip_TIMER_Disable(LPC_TIMER32_0)
+			Chip_TIMER_Disable(LPC_TIMER32_0);
 		}
 
-		mbb_cmd.balance_mVolts = out_state.balance_mVolts;
+		mbb_cmd.balance_target_mVolts = out_state.balance_mVolts;
+
+		// Retrive any available Brusa Messages for shits
+		uint8_t tmp = 0;
+		MCP2515_Read(CANINTF, &tmp, 1);
+		if (tmp & 1) { //Receive buffer 0 full
+			MCP2515_ReadBuffer(&mcp_msg_obj, 0);
+			if (mcp_msg_obj.mode_id == NLG5_STATUS) {
+				Brusa_DecodeStatus(&brusa_status, &mcp_msg_obj);
+			} else if (mcp_msg_obj.mode_id == NLG5_ACT_I) {
+				Brusa_DecodeActI(&brusa_actual_1, &mcp_msg_obj);
+			} else if (mcp_msg_obj.mode_id == NLG5_ACT_II) {
+				Brusa_DecodeActII(&brusa_actual_2, &mcp_msg_obj);
+			} else if (mcp_msg_obj.mode_id == NLG5_TEMP) {
+				Brusa_DecodeTemp(&brusa_temp, &mcp_msg_obj);
+			} else {
+				DEBUG_Print("Received Unknown Message on Brusa Bus");
+			}
+		}
 
 		// uint8_t count;
 		// if ((count = Chip_UART_Read(LPC_USART, Rx_Buf, 8)) != 0) {
@@ -469,45 +493,6 @@ int main(void)
 
 		// 	}
 		// }
-
-		// if (requested_mode != REQ_NONE) {
-		// 	if (requested_mode == REQ_IDLE) {
-		// 		mode = IDLE;
-		// 		Chip_TIMER_Disable(LPC_TIMER32_0);
-		// 	} else if (requested_mode == REQ_CHARGING) {
-		// 		mode = CHARGING;
-		// 		Chip_TIMER_SetMatch(LPC_TIMER32_0, 0, SystemCoreClock / 10); // 100ms
-		// 		Chip_TIMER_Enable(LPC_TIMER32_0);
-		// 	}
-
-		// 	requested_mode = REQ_NONE;
-		// }
-
-		// uint8_t tmp = 0;
-		// MCP2515_Read(CANINTF, &tmp, 1);
-		// if (tmp & 1) { //Receive buffer 0 full
-		// 	// DEBUG_Print("Received Message\r\n");
-		// 	MCP2515_ReadBuffer(&mcp_msg_obj, 0);
-		// 	if (mcp_msg_obj.mode_id == NLG5_STATUS) {
-		// 		Brusa_DecodeStatus(&brusa_status, &mcp_msg_obj);
-		// 		brusa_status_count++;
-		// 	} else if (mcp_msg_obj.mode_id == NLG5_ACT_I) {
-		// 		Brusa_DecodeActI(&brusa_actual_1, &mcp_msg_obj);
-		// 		brusa_actual_1_count++;
-		// 	} else if (mcp_msg_obj.mode_id == NLG5_ACT_II) {
-		// 		Brusa_DecodeActII(&brusa_actual_2, &mcp_msg_obj);
-		// 		brusa_actual_2_count++;
-		// 	} else if (mcp_msg_obj.mode_id == NLG5_TEMP) {
-		// 		Brusa_DecodeTemp(&brusa_temp, &mcp_msg_obj);
-		// 		brusa_temp_count++;
-		// 	} else {
-		// 		DEBUG_Print("Received unknown message of ID: 0x");
-		// 		itoa(mcp_msg_obj.mode_id, str, 16);
-		// 		DEBUG_Print(str);
-		// 		DEBUG_Print("\r\n");
-		// 	}
-		// }
-
 
 	}
 
