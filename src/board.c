@@ -117,11 +117,9 @@ void Board_Contactors_Init(void) {
 	Chip_GPIO_SetPinDIROutput(LPC_GPIO, CONTACTOR_N_GPIO, CONTACTOR_N_PIN);
 	Chip_GPIO_SetPinDIROutput(LPC_GPIO, CONTACTOR_P_GPIO, CONTACTOR_P_PIN);
 	Chip_GPIO_SetPinDIROutput(LPC_GPIO, CONTACTOR_PRE_GPIO, CONTACTOR_PRE_PIN);
-
-	Board_Contactors_Off();
 }
 
-bool Board_Contactors_On(void) {
+bool Board_Contactors_Close(void) {
 	Chip_GPIO_SetPinOutHigh(LPC_GPIO, CONTACTOR_PRE_GPIO, CONTACTOR_PRE_PIN);
 	//delay
 	Chip_GPIO_SetPinOutHigh(LPC_GPIO, CONTACTOR_N_GPIO, CONTACTOR_N_PIN);
@@ -133,12 +131,20 @@ bool Board_Contactors_On(void) {
 	return true;
 }
 
-bool Board_Contactors_Off(void) {
+bool Board_Contactors_Open(void) {
 	Chip_GPIO_SetPinOutLow(LPC_GPIO, CONTACTOR_P_GPIO, CONTACTOR_P_PIN);
 	Chip_GPIO_SetPinOutLow(LPC_GPIO, CONTACTOR_N_GPIO, CONTACTOR_N_PIN);
 
 	// Did they actually turn of
 	return true;
+}
+
+void Board_Close_Contactors(bool close) {
+	if (close) {
+		Board_Contactors_Close();
+	} else {
+		Board_Contactors_Open();
+	}
 }
 
 bool Board_Contactors_Closed(void) {

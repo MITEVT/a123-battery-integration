@@ -26,10 +26,13 @@
 #define ERROR_CAN_BUS 3
 #define ERROR_INCOMPATIBLE_MODE 4
 #define ERROR_CONTACTOR 5
+#define ERROR_CHARGE_SM 6
 
 #define BCM_POLL_IDLE_FREQ 1
 #define BCM_POLL_CHARGING_FREQ 100
 #define BCM_POLL_DRAINING_FREQ 100
+
+#define BRUSA_MAX_MAINS_CAMPS 1500
 
 #define Hertz2Ticks(freq) SystemCoreClock / freq
 
@@ -160,7 +163,6 @@ void TIMER32_1_IRQHandler(void) {
 		// Send BCM_CMD
 		mbb_cmd.request_type = BCM_REQUEST_TYPE_STD;
 		mbb_cmd.request_id = 5; 		// Should I change this?
-		mbb_cmd.balance_target_mVolts = out_state.balance_mVolts;
 		// mbb_cmd.balance_target_mVolts = BCM_BALANCE_OFF;
 
 		can_msg_obj.msgobj = 2;
@@ -230,10 +232,10 @@ void Init_Board(void) {
 }
 
 void Init_Globals(void) {
-	brusa_control.enable = 0;
+	brusa_control.enable = 1;
 	brusa_control.clear_error = 0;
 	brusa_control.ventilation_request = 0;
-	brusa_control.max_mains_cAmps = 0;
+	brusa_control.max_mains_cAmps = BRUSA_MAX_MAINS_CAMPS;
 	brusa_control.output_mVolts = 0;
 	brusa_control.output_cAmps = 0;
 
@@ -376,37 +378,61 @@ int main(void)
 			}
 		}
 
-		// [TODO] Actually write this correctly
 		MODE_T old_mode = mode;
 		mode = getNextMode(requested_mode, mode);
 		if (old_mode != mode) {
 			// Changed mode
 			if (old_mode == CHARGING) {
-				// while(Charge_Step(&pack_state, mode, &out_state) != CHRG_OFF) {
-				// 	if (!out_state.close_contactors) {
-				// 		Board_Contactors_Off();
-				// 	}
-				// 	pack_state.contactors_closed = Board_Contactors_Closed();
-				// }
-			} else if (old_mode == DRAINING) {
-				while(Drain_Step(&pack_state, mode, &out_state) != DRAIN_EXITED) {
+				while (Charge_GetMode() != CHRG_OFF) {
+					Charge_Step(&pack_state, REQ_IDLE, &out_state);
 					if (!out_state.close_contactors) {
-						Board_Contactors_Off();
+						Board_Close_Contactors(false);
 					}
 					pack_state.contactors_closed = Board_Contactors_Closed();
 				}
+			} else if (old_mode == DRAINING) {
+
+			}
+
+			if (mode == CHARGING) {
+				Charge_Step(&pack_state, REQ_CHARGING, &out_state);
+			} else if (mode == DRAINING) {
+				Charge_Step(&pack_state, REQ_DRAINING, &out_state);
 			}
 		}
 
+		pack_state.msTicks = msTicks;
+		CHARGING_STATUS_T status;
 		// Handle mode functionality
 		if (mode == IDLE) {
 			// Do nothing?
 		} else if (mode == CHARGING) {
 			// Update Charge SM
-
+			status = Charge_Step(&pack_state, REQ_NONE, &out_state);
+			if (status == CHRG_ERROR) {
+				_error(ERROR_CHARGE_SM, true, false);
+				Board_Close_Contactors(false);
+				requested_mode = IDLE;
+			}
 		} else if (mode == DRAINING) {
 			// Update Drain SM
 		}
+
+		if (out_state.close_contactors && !Board_Contactors_Closed()) {
+			Board_Close_Contactors(true);
+		} else if (!out_state.close_contactors && Board_Contactors_Closed()) {
+			Board_Close_Contactors(false);
+		}
+
+		if (out_state.brusa_mVolts != 0 || out_state.brusa_cAmps != 0) {
+			brusa_control.output_mVolts = out_state.brusa_mVolts;
+			brusa_control.output_cAmps = out_state.brusa_cAmps;
+			Chip_TIMER_Enable(LPC_TIMER32_0);
+		} else {
+			Chip_TIMER_Disable(LPC_TIMER32_0)
+		}
+
+		mbb_cmd.balance_mVolts = out_state.balance_mVolts;
 
 		// uint8_t count;
 		// if ((count = Chip_UART_Read(LPC_USART, Rx_Buf, 8)) != 0) {

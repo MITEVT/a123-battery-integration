@@ -48,9 +48,7 @@ void Board_Switch_Init(void);
 bool Board_Switch_Read(void);
 
 void Board_Contactors_Init(void);
-bool Board_Contactors_On(void);
-bool Board_Contactors_Off(void);
-
+void Board_Close_Contactors(bool close);
 bool Board_Contactors_Closed(void);
 
 extern void CAN_rx(uint8_t msg_obj_num);
