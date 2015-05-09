@@ -141,26 +141,27 @@ void TIMER32_1_IRQHandler(void) {
 	if (!RingBuffer_IsEmpty(&rx_buffer)) {
 		CCAN_MSG_OBJ_T temp_msg;
 		RingBuffer_Pop(&rx_buffer, &temp_msg);
-		uint8_t mod_id = temp_msg.mode_id * 0xFF;
+		uint8_t mod_id = temp_msg.mode_id & 0xFF;
 		if ((temp_msg.mode_id & MBB_STD_MASK) == MBB_STD) {
 			MBB_DecodeStd(&mbb_std, &temp_msg);
-			if (mbb_std.mod_v_min < pack_state.pack_v_min) {
-				pack_state.pack_v_min = mbb_std.mod_v_min;
+			if (mbb_std.mod_min_mVolts < pack_state.pack_min_mVolts) {
+				pack_state.pack_min_mVolts = mbb_std.mod_min_mVolts;
 				pack_state.pack_node_min = mod_id;
 			}
 
-			if (mbb_std.mod_v_max > pack_state.pack_v_max) {
-				pack_state.pack_v_max = mbb_std.mod_v_max;
+			if (mbb_std.mod_max_mVolts > pack_state.pack_max_mVolts) {
+				pack_state.pack_max_mVolts = mbb_std.mod_max_mVolts;
 				pack_state.pack_node_max = mod_id;
 			}
 			pack_state.messagesReceived++;
-			pack_state.pack_v_avg = (pack_state.pack_v_avg * (pack_state.messagesReceived - 1) + mbb_std.mod_v_avg) / pack_state.messagesReceived;
+			pack_state.pack_avg_mVolts = (pack_state.pack_avg_mVolts * (pack_state.messagesReceived - 1) + mbb_std.mod_avg_mVolts) / pack_state.messagesReceived;
 		}
 	} else {
 		// Send BCM_CMD
-		mbb_cmd.request_type = 0;
+		mbb_cmd.request_type = BCM_REQUEST_TYPE_STD;
 		mbb_cmd.request_id = 5; 		// Should I change this?
-		mbb_cmd.balance_target = BCM_BALANCE_OFF;
+		mbb_cmd.balance_target_mVolts = out_state.balance_mVolts;
+		// mbb_cmd.balance_target_mVolts = BCM_BALANCE_OFF;
 
 		can_msg_obj.msgobj = 2;
 		MBB_MakeCMD(&mbb_cmd, &can_msg_obj);
@@ -176,14 +177,11 @@ void TIMER32_1_IRQHandler(void) {
 /*	Function is executed by the Callback handler after
     a CAN message has been received */
 void CAN_rx(uint8_t msg_obj_num) {
-	// LED_On();
 	/* Determine which CAN message has been received */
 	can_msg_obj.msgobj = msg_obj_num;
 	/* Now load up the msg_obj structure with the CAN message */
 	LPC_CCAN_API->can_receive(&can_msg_obj);
-	if (msg_obj_num == 1) {
-		RingBuffer_Insert(&rx_buffer, &can_msg_obj);
-	}
+	RingBuffer_Insert(&rx_buffer, &can_msg_obj);
 }
 
 /*	CAN transmit callback */
@@ -235,26 +233,23 @@ void Init_Globals(void) {
 	brusa_control.enable = 0;
 	brusa_control.clear_error = 0;
 	brusa_control.ventilation_request = 0;
-	brusa_control.max_mains_current = 0;
-	brusa_control.output_voltage = 0;
-	brusa_control.output_current = 0;
-
-	brusa_status.mains_type = 0;
-	brusa_actual_1.mains_voltage = 0;
+	brusa_control.max_mains_cAmps = 0;
+	brusa_control.output_mVolts = 0;
+	brusa_control.output_cAmps = 0;
 
 	mode = IDLE;
 	requested_mode = REQ_NONE;
 
-	pack_state.pack_v_min = 0xFFFFFFFF;
+	pack_state.pack_min_mVolts = 0xFFFFFFFF;
 	pack_state.pack_node_min = 0;
-	pack_state.pack_v_max = 0;
+	pack_state.pack_max_mVolts = 0;
 	pack_state.pack_node_max = 0;
-	pack_state.pack_v_avg = 0;
+	pack_state.pack_avg_mVolts = 0;
 	pack_state.messagesReceived = 0;
 
-	out_state.balance_voltage = BCM_BALANCE_OFF;
-	out_state.brusa_deci_volts = 0;
-	out_state.brusa_deci_amps = 0;
+	out_state.balance_mVolts = BCM_BALANCE_OFF;
+	out_state.brusa_mVolts = 0;
+	out_state.brusa_cAmps = 0;
 	out_state.close_contactors = false;
 }
 
@@ -349,15 +344,15 @@ int main(void)
 			DEBUG_Write(Rx_Buf, count);
 			switch (Rx_Buf[0]) {
 				case 'a':
-					itoa(num2mVolts(pack_state.pack_v_min), str, 10);
+					itoa(num2mVolts(pack_state.pack_min_mVolts), str, 10);
 					DEBUG_Print("Pack Min Voltage: ");
 					DEBUG_Print(str);
 					DEBUG_Print("\r\n");
-					itoa(num2mVolts(pack_state.pack_v_max), str, 10);
+					itoa(num2mVolts(pack_state.pack_max_mVolts), str, 10);
 					DEBUG_Print("Pack Max Voltage: ");
 					DEBUG_Print(str);
 					DEBUG_Print("\r\n");
-					itoa(num2mVolts(pack_state.pack_v_avg), str, 10);
+					itoa(num2mVolts(pack_state.pack_avg_mVolts), str, 10);
 					DEBUG_Print("Pack Avg Voltage: ");
 					DEBUG_Print(str);
 					DEBUG_Print("\r\n");
@@ -387,12 +382,12 @@ int main(void)
 		if (old_mode != mode) {
 			// Changed mode
 			if (old_mode == CHARGING) {
-				while(Charge_Step(&pack_state, mode, &out_state) != CHRG_OFF) {
-					if (!out_state.close_contactors) {
-						Board_Contactors_Off();
-					}
-					pack_state.contactors_closed = Board_Contactors_Closed();
-				}
+				// while(Charge_Step(&pack_state, mode, &out_state) != CHRG_OFF) {
+				// 	if (!out_state.close_contactors) {
+				// 		Board_Contactors_Off();
+				// 	}
+				// 	pack_state.contactors_closed = Board_Contactors_Closed();
+				// }
 			} else if (old_mode == DRAINING) {
 				while(Drain_Step(&pack_state, mode, &out_state) != DRAIN_EXITED) {
 					if (!out_state.close_contactors) {
