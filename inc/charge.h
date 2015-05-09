@@ -5,26 +5,23 @@
 #include "a123mbb.h"
 #include "brusa.h"
 
-#define BCM_BAL_ON_THRESH 1/2	    // As state by datasheet, Value at which must stop charging
-#define BCM_BAL_OFF_THRESH 4/2
-#define BCM_BAL_CELL_V_MIN mVolts2Num(3400)
-#define BCM_BAL_ENABLE(pack_v_max, pack_v_min) ((pack_v_max - pack_v_min) > BCM_BAL_OFF_THRESH) && pack_v_min >= BCM_BAL_CELL_V_MIN
+#define BCM_BAL_ON_THRESH 1	    // As stated by datasheet, Value at which must stop charging
+#define BCM_BAL_OFF_THRESH 4
+#define BCM_BAL_CELL_V_MIN 3400
+#define BCM_BAL_ENABLE(pack_v_max, pack_v_min) ((pack_v_max - pack_v_min) >= BCM_BAL_OFF_THRESH) && pack_v_min >= BCM_BAL_CELL_V_MIN
 #define BCM_BAL_DISABLE(pack_v_max, pack_v_min) ((pack_v_max - pack_v_min) <= BCM_BAL_ON_THRESH) || pack_v_min < BCM_BAL_CELL_V_MIN
-
-#define BCM_CHRG_CC_CELL_V_MAX mVolts2Num(3600)
-#define BCM_CHRG_STATE(pack_v_max) ((pack_v_max < BCM_CHRG_CC_CELL_V_MAX) ? CHRG_CC : CHRG_CV)
-
-#define BCM_CHRG_CC_BRUSA_DECI_V 37
-#define BCM_CHRG_CV_BRUSA_DECI_V 36
 
 
 typedef enum {CHRG_OFF, CHRG_INIT, CHRG_CC, CHRG_CV, CHRG_DONE} CHARGING_MODE_T;
 typedef enum {CHRG_OK, CHRG_ERROR} CHARGING_STATUS_T;
 
 typedef struct {
-	uint8_t mod_s;
-	uint8_t mod_p;
-	uint32_t max_deci_amps_per_p;
+	uint8_t pack_s; 				// Number of cells in series
+	uint8_t pack_p;					// Number of cells in parallel
+	uint32_t max_cell_mVolts; 		// Maximum cell voltage
+	uint32_t cc_cell_mVolts;		// Voltage over cell in CC Mode
+	uint16_t cell_capacity_cAmpHours;
+	uint8_t cell_c_rating;
 } CHARGING_CONFIG_T;
 
 void Charge_Config(CHARGING_CONFIG_T *config);
