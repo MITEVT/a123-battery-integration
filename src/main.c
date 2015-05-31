@@ -46,6 +46,7 @@ volatile uint64_t msTicks; // Milliseconds
 uint8_t Rx_Buf[UART_RX_BUF_SIZE];
 
 static char str[100]; // For use with String Manipulation
+static char int_str[100];
 
 static CCAN_MSG_OBJ_T mcp_msg_obj;
 static NLG5_CTL_T brusa_control;
@@ -84,8 +85,7 @@ void _error(uint8_t errorNo, bool flashLED, bool hang) {
 	DEBUG_Print(str);
 	DEBUG_Print(")\r\n");
 
-	do { // Hang forever
-		DEBUG_Print("Entered do");
+	do { // Hang forevers
 		if (flashLED) {
 			uint8_t i;
 			for (i = 0; i < errorNo; i++) {
@@ -139,6 +139,8 @@ void TIMER32_0_IRQHandler(void) {
 	}
 }
 
+static bool newMessage = true;
+
 // Used for sending BCM_CMD and checking for available data
 void TIMER32_1_IRQHandler(void) {
 	Chip_TIMER_ClearMatch(LPC_TIMER32_1, 0);
@@ -148,7 +150,30 @@ void TIMER32_1_IRQHandler(void) {
 		RingBuffer_Pop(&rx_buffer, &temp_msg);
 		uint8_t mod_id = temp_msg.mode_id & 0xFF;
 		if ((temp_msg.mode_id & MBB_STD_MASK) == MBB_STD) {
+			// uint32_t val = ((temp_msg.data[2] << 8) | (temp_msg.data[3] & 0xF8)) >> 3;
+			// itoa(num2mVolts(val), int_str, 16);
+			// DEBUG_Print("Min Voltage: ");
+			// DEBUG_Print(int_str);
+			// DEBUG_Print("\r\n");
+			// itoa(val, int_str, 16);
+			// DEBUG_Print("Min Voltage: ");
+			// DEBUG_Print(int_str);
+			// DEBUG_Print("\r\n");
+
 			MBB_DecodeStd(&mbb_std, &temp_msg);
+
+			// itoa(mbb_std.mod_min_mVolts, int_str, 16);
+			// DEBUG_Print("Pack Min Voltage: 0x");
+			// DEBUG_Print(int_str);
+			// DEBUG_Print("\r\n");
+
+			if (newMessage) {
+				pack_state.pack_min_mVolts = mbb_std.mod_min_mVolts;
+				pack_state.pack_max_mVolts = mbb_std.mod_max_mVolts;
+				pack_state.pack_node_min = mod_id;
+				pack_state.pack_node_max = mod_id;
+				newMessage = false;
+			}
 			if (mbb_std.mod_min_mVolts < pack_state.pack_min_mVolts) {
 				pack_state.pack_min_mVolts = mbb_std.mod_min_mVolts;
 				pack_state.pack_node_min = mod_id;
@@ -158,6 +183,12 @@ void TIMER32_1_IRQHandler(void) {
 				pack_state.pack_max_mVolts = mbb_std.mod_max_mVolts;
 				pack_state.pack_node_max = mod_id;
 			}
+
+			itoa(mbb_std.balance_c_count, int_str, 16);
+			DEBUG_Print("Active Balance Circuits: 0x");
+			DEBUG_Print(int_str);
+			DEBUG_Print("\r\n");
+
 			pack_state.messagesReceived++;
 			pack_state.pack_avg_mVolts = (pack_state.pack_avg_mVolts * (pack_state.messagesReceived - 1) + mbb_std.mod_avg_mVolts) / pack_state.messagesReceived;
 		}
@@ -165,12 +196,14 @@ void TIMER32_1_IRQHandler(void) {
 		// Send BCM_CMD
 		mbb_cmd.request_type = BCM_REQUEST_TYPE_STD;
 		mbb_cmd.request_id = 5; 		// Should I change this?
-		// mbb_cmd.balance_target_mVolts = BCM_BALANCE_OFF;
+		mbb_cmd.balance_target_mVolts = BCM_BALANCE_OFF;
+		// mbb_cmd.balance_target_mVolts = pack_state.pack_min_mVolts;
 
 		can_msg_obj.msgobj = 2;
 		MBB_MakeCMD(&mbb_cmd, &can_msg_obj);
 		LPC_CCAN_API->can_transmit(&can_msg_obj);	
 
+		newMessage = true;
 	}
 }
 
@@ -352,16 +385,20 @@ int main(void)
 			//DEBUG_Write(Rx_Buf, count);
 			switch (Rx_Buf[0]) {
 				case 'a':
-					itoa(pack_state.pack_min_mVolts, str, 10);
-					DEBUG_Print("Pack Min Voltage: ");
+					itoa(pack_state.pack_min_mVolts, str, 16);
+					DEBUG_Print("Pack Min Voltage: 0x");
 					DEBUG_Print(str);
 					DEBUG_Print("\r\n");
-					itoa(pack_state.pack_max_mVolts, str, 10);
-					DEBUG_Print("Pack Max Voltage: ");
+					itoa(pack_state.pack_max_mVolts, str, 16);
+					DEBUG_Print("Pack Max Voltage: 0x");
 					DEBUG_Print(str);
 					DEBUG_Print("\r\n");
-					itoa(pack_state.pack_avg_mVolts, str, 10);
-					DEBUG_Print("Pack Avg Voltage: ");
+					itoa(pack_state.pack_avg_mVolts, str, 16);
+					DEBUG_Print("Pack Avg Voltage: 0x");
+					DEBUG_Print(str);
+					DEBUG_Print("\r\n");
+					itoa(pack_state.messagesReceived, str, 10);
+					DEBUG_Print("Messages Received: ");
 					DEBUG_Print(str);
 					DEBUG_Print("\r\n");
 
@@ -419,6 +456,7 @@ int main(void)
 				_error(ERROR_CHARGE_SM, true, false);
 				Board_Close_Contactors(false);
 				requested_mode = IDLE;
+				continue;
 			}
 		} else if (mode == DRAINING) {
 			// Update Drain SM
@@ -429,6 +467,7 @@ int main(void)
 		} else if (!out_state.close_contactors && Board_Contactors_Closed()) {
 			Board_Close_Contactors(false);
 		}
+		pack_state.contactors_closed = Board_Contactors_Closed();
 
 		if (out_state.brusa_mVolts != 0 || out_state.brusa_cAmps != 0) {
 			brusa_control.output_mVolts = out_state.brusa_mVolts;
