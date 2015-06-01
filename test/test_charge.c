@@ -59,14 +59,27 @@ TEST(Charge_Test, test_contactors_open) {
 	TEST_ASSERT_EQUAL(CHRG_OFF, Charge_GetMode());
 
 	// Request Charging Mode, should stay in init until contactors turn on.
+	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_CHARGING, &out_state));
+	TEST_ASSERT_EQUAL(CHRG_INIT, Charge_GetMode());
+	TEST_ASSERT_EQUAL(0, out_state.brusa_cAmps);
+	TEST_ASSERT_EQUAL(0, out_state.brusa_mVolts);
+	TEST_ASSERT_EQUAL(true, out_state.close_contactors);
 	int i;
 	for (i = 0; i < 1000; i++) {
-		TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_CHARGING, &out_state));
+		TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
 		TEST_ASSERT_EQUAL(CHRG_INIT, Charge_GetMode());
 		TEST_ASSERT_EQUAL(0, out_state.brusa_cAmps);
 		TEST_ASSERT_EQUAL(0, out_state.brusa_mVolts);
 		TEST_ASSERT_EQUAL(true, out_state.close_contactors);
 	}
+
+	pack_state.contactors_closed = true;
+
+	// Turn off Charging
+	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_IDLE, &out_state));
+	TEST_ASSERT_EQUAL(0, out_state.brusa_mVolts);
+	TEST_ASSERT_EQUAL(0, out_state.brusa_cAmps);
+	TEST_ASSERT_EQUAL(false, out_state.close_contactors);
 }
 
 TEST(Charge_Test, test_to_cc_w_bal) {
@@ -90,12 +103,16 @@ TEST(Charge_Test, test_to_cc_w_bal) {
 	pack_state.contactors_closed = true;
 	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
 	TEST_ASSERT_EQUAL(CHRG_CC, Charge_GetMode());
-	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
-	TEST_ASSERT_EQUAL(CHRG_CC, Charge_GetMode());
 	TEST_ASSERT_EQUAL(CC_PACK_MVOLTS, out_state.brusa_mVolts);
 	TEST_ASSERT_EQUAL(CURRENT_LIMIT, out_state.brusa_cAmps);
 	TEST_ASSERT_EQUAL(true, out_state.close_contactors);
 	TEST_ASSERT_EQUAL(pack_state.pack_min_mVolts, out_state.balance_mVolts);
+
+	// Turn off Charging
+	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_IDLE, &out_state));
+	TEST_ASSERT_EQUAL(0, out_state.brusa_mVolts);
+	TEST_ASSERT_EQUAL(0, out_state.brusa_cAmps);
+	TEST_ASSERT_EQUAL(false, out_state.close_contactors);
 }
 
 TEST(Charge_Test, test_to_cc_w_out_bal) {
@@ -117,8 +134,6 @@ TEST(Charge_Test, test_to_cc_w_out_bal) {
 	// and output voltage should be CC voltage
 	// should not be balancing
 	pack_state.contactors_closed = true;
-	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
-	TEST_ASSERT_EQUAL(CHRG_CC, Charge_GetMode());
 	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
 	TEST_ASSERT_EQUAL(CHRG_CC, Charge_GetMode());
 	TEST_ASSERT_EQUAL(CC_PACK_MVOLTS, out_state.brusa_mVolts);
@@ -148,8 +163,6 @@ TEST(Charge_Test, test_to_cv_w_bal) {
 	pack_state.contactors_closed = true;
 	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
 	TEST_ASSERT_EQUAL(CHRG_CV, Charge_GetMode());
-	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
-	TEST_ASSERT_EQUAL(CHRG_CV, Charge_GetMode());
 	TEST_ASSERT_EQUAL(CV_PACK_MVOLTS, out_state.brusa_mVolts);
 	TEST_ASSERT_EQUAL(CURRENT_LIMIT, out_state.brusa_cAmps);
 	TEST_ASSERT_EQUAL(true, out_state.close_contactors);
@@ -175,8 +188,6 @@ TEST(Charge_Test, test_to_cv_w_out_bal) {
 	// and output voltage should be CV voltage
 	// should not be balancing
 	pack_state.contactors_closed = true;
-	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
-	TEST_ASSERT_EQUAL(CHRG_CV, Charge_GetMode());
 	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
 	TEST_ASSERT_EQUAL(CHRG_CV, Charge_GetMode());
 	TEST_ASSERT_EQUAL(CV_PACK_MVOLTS, out_state.brusa_mVolts);
@@ -207,8 +218,6 @@ TEST(Charge_Test, test_to_cc_to_cv_w_bal) {
 	pack_state.contactors_closed = true;
 	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
 	TEST_ASSERT_EQUAL(CHRG_CC, Charge_GetMode());
-	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
-	TEST_ASSERT_EQUAL(CHRG_CC, Charge_GetMode());
 	TEST_ASSERT_EQUAL(CC_PACK_MVOLTS, out_state.brusa_mVolts);
 	TEST_ASSERT_EQUAL(CURRENT_LIMIT, out_state.brusa_cAmps);
 	TEST_ASSERT_EQUAL(true, out_state.close_contactors);
@@ -217,8 +226,6 @@ TEST(Charge_Test, test_to_cc_to_cv_w_bal) {
 	// Change pack state to be in cv range
 	pack_state.pack_min_mVolts = 3595;
 	pack_state.pack_max_mVolts = 3600;
-	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
-	TEST_ASSERT_EQUAL(CHRG_CV, Charge_GetMode());
 	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
 	TEST_ASSERT_EQUAL(CHRG_CV, Charge_GetMode());
 	TEST_ASSERT_EQUAL(CV_PACK_MVOLTS, out_state.brusa_mVolts);
@@ -249,8 +256,6 @@ TEST(Charge_Test, test_to_cc_to_cv_w_out_bal) {
 	pack_state.contactors_closed = true;
 	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
 	TEST_ASSERT_EQUAL(CHRG_CC, Charge_GetMode());
-	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
-	TEST_ASSERT_EQUAL(CHRG_CC, Charge_GetMode());
 	TEST_ASSERT_EQUAL(CC_PACK_MVOLTS, out_state.brusa_mVolts);
 	TEST_ASSERT_EQUAL(CURRENT_LIMIT, out_state.brusa_cAmps);
 	TEST_ASSERT_EQUAL(true, out_state.close_contactors);
@@ -259,8 +264,6 @@ TEST(Charge_Test, test_to_cc_to_cv_w_out_bal) {
 	// Change pack state to be in cv range
 	pack_state.pack_min_mVolts = 3598;
 	pack_state.pack_max_mVolts = 3600;
-	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
-	TEST_ASSERT_EQUAL(CHRG_CV, Charge_GetMode());
 	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
 	TEST_ASSERT_EQUAL(CHRG_CV, Charge_GetMode());
 	TEST_ASSERT_EQUAL(CV_PACK_MVOLTS, out_state.brusa_mVolts);
@@ -289,8 +292,6 @@ TEST(Charge_Test, test_to_cv_to_done) {
 	// and output voltage should be CV voltage
 	// should not be balancing
 	pack_state.contactors_closed = true;
-	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
-	TEST_ASSERT_EQUAL(CHRG_CV, Charge_GetMode());
 	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
 	TEST_ASSERT_EQUAL(CHRG_CV, Charge_GetMode());
 	TEST_ASSERT_EQUAL(CV_PACK_MVOLTS, out_state.brusa_mVolts);
@@ -323,8 +324,6 @@ TEST(Charge_Test, test_fully_balance) {
 	// and output voltage should be CC voltage
 	// should be balancing to min val
 	pack_state.contactors_closed = true;
-	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
-	TEST_ASSERT_EQUAL(CHRG_CC, Charge_GetMode());
 	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
 	TEST_ASSERT_EQUAL(CHRG_CC, Charge_GetMode());
 	TEST_ASSERT_EQUAL(CC_PACK_MVOLTS, out_state.brusa_mVolts);

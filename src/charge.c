@@ -22,8 +22,8 @@ void Charge_Config(CHARGING_CONFIG_T *config) {
 CHARGING_STATUS_T Charge_Step(PACK_STATE_T *pack_state, MODE_REQUEST_T req_mode, OUTPUT_STATE_T *out_state) {
 	switch (req_mode) {
 		case REQ_CHARGING:
-			// Do nothing
-			mode = CHRG_INIT;
+			// If starting from not charging, go to init, else stay where you are
+			mode = (mode == CHRG_OFF) ? CHRG_INIT : mode;
 			break;
 		case REQ_DRAINING:
 			// Move to exit state
@@ -39,11 +39,13 @@ CHARGING_STATUS_T Charge_Step(PACK_STATE_T *pack_state, MODE_REQUEST_T req_mode,
 			// Chill
 			break;
 	}
-
+handler:
 	switch(mode) {
 		case CHRG_OFF:
-			// Wut, this shouldn't happen, software bug though
-			return CHRG_ERROR;
+			out_state->balance_mVolts = BCM_BALANCE_OFF;
+			out_state->brusa_mVolts = 0;
+			out_state->brusa_cAmps = 0;
+			out_state->close_contactors = false;
 			break;
 		case CHRG_INIT:
 			// Start charging
@@ -55,6 +57,7 @@ CHARGING_STATUS_T Charge_Step(PACK_STATE_T *pack_state, MODE_REQUEST_T req_mode,
 				// Else
 				// 		Charge in CV
 				mode = (pack_state->pack_max_mVolts < max_cell_mVolts) ? CHRG_CC : CHRG_CV;
+				goto handler;
 			}
 			out_state->balance_mVolts = BCM_BALANCE_OFF;
 			out_state->brusa_mVolts = 0;
@@ -67,6 +70,7 @@ CHARGING_STATUS_T Charge_Step(PACK_STATE_T *pack_state, MODE_REQUEST_T req_mode,
 				mode = CHRG_CV;
 				out_state->brusa_mVolts = 0;
 				out_state->brusa_cAmps = 0;
+				goto handler;
 			} else {
 				// Charge in CC Mode
 				out_state->brusa_mVolts = cc_pack_mVolts;
@@ -92,6 +96,7 @@ CHARGING_STATUS_T Charge_Step(PACK_STATE_T *pack_state, MODE_REQUEST_T req_mode,
 				mode = CHRG_CC;
 				out_state->brusa_mVolts = 0;
 				out_state->brusa_cAmps = 0;
+				goto handler;
 			} else {
 				// Charge in CV Mode
 				out_state->brusa_mVolts = max_pack_mVolts;
