@@ -3,8 +3,8 @@
 #include "unity_fixture.h"
 #include <stdio.h>
 
-#define PACK_S 66
-#define PACK_P 9
+#define PACK_S 22
+#define PACK_P 3
 #define MAX_CELL_MVOLTS 3600
 #define CC_CELL_MVOLTS 3700
 #define CELL_CAMP_HOURS 2000
@@ -20,8 +20,7 @@ OUTPUT_STATE_T out_state;
 
 TEST_GROUP(Charge_Test);
 
-TEST_SETUP(Charge_Test)
-{
+TEST_SETUP(Charge_Test) {
 
 	CHARGING_CONFIG_T config;
 	config.pack_s = PACK_S;
@@ -48,8 +47,7 @@ TEST_SETUP(Charge_Test)
   
 }
 
-TEST_TEAR_DOWN(Charge_Test)
-{
+TEST_TEAR_DOWN(Charge_Test) {
 	// Return to initial state
 	Charge_Step(&pack_state, REQ_IDLE, &out_state);
 }
@@ -77,6 +75,7 @@ TEST(Charge_Test, test_contactors_open) {
 
 	// Turn off Charging
 	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_IDLE, &out_state));
+	TEST_ASSERT_EQUAL(CHRG_OFF, Charge_GetMode());
 	TEST_ASSERT_EQUAL(0, out_state.brusa_mVolts);
 	TEST_ASSERT_EQUAL(0, out_state.brusa_cAmps);
 	TEST_ASSERT_EQUAL(false, out_state.close_contactors);
@@ -110,6 +109,7 @@ TEST(Charge_Test, test_to_cc_w_bal) {
 
 	// Turn off Charging
 	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_IDLE, &out_state));
+	TEST_ASSERT_EQUAL(CHRG_OFF, Charge_GetMode());
 	TEST_ASSERT_EQUAL(0, out_state.brusa_mVolts);
 	TEST_ASSERT_EQUAL(0, out_state.brusa_cAmps);
 	TEST_ASSERT_EQUAL(false, out_state.close_contactors);
@@ -140,6 +140,13 @@ TEST(Charge_Test, test_to_cc_w_out_bal) {
 	TEST_ASSERT_EQUAL(CURRENT_LIMIT, out_state.brusa_cAmps);
 	TEST_ASSERT_EQUAL(true, out_state.close_contactors);
 	TEST_ASSERT_EQUAL(BCM_BALANCE_OFF, out_state.balance_mVolts);
+
+	// Turn off Charging
+	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_IDLE, &out_state));
+	TEST_ASSERT_EQUAL(CHRG_OFF, Charge_GetMode());
+	TEST_ASSERT_EQUAL(0, out_state.brusa_mVolts);
+	TEST_ASSERT_EQUAL(0, out_state.brusa_cAmps);
+	TEST_ASSERT_EQUAL(false, out_state.close_contactors);
 }
 
 TEST(Charge_Test, test_to_cv_w_bal) {
@@ -167,6 +174,13 @@ TEST(Charge_Test, test_to_cv_w_bal) {
 	TEST_ASSERT_EQUAL(CURRENT_LIMIT, out_state.brusa_cAmps);
 	TEST_ASSERT_EQUAL(true, out_state.close_contactors);
 	TEST_ASSERT_EQUAL(pack_state.pack_min_mVolts, out_state.balance_mVolts);
+
+	// Turn off Charging
+	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_IDLE, &out_state));
+	TEST_ASSERT_EQUAL(CHRG_OFF, Charge_GetMode());
+	TEST_ASSERT_EQUAL(0, out_state.brusa_mVolts);
+	TEST_ASSERT_EQUAL(0, out_state.brusa_cAmps);
+	TEST_ASSERT_EQUAL(false, out_state.close_contactors);
 }
 
 TEST(Charge_Test, test_to_cv_w_out_bal) {
@@ -194,6 +208,13 @@ TEST(Charge_Test, test_to_cv_w_out_bal) {
 	TEST_ASSERT_EQUAL(CURRENT_LIMIT, out_state.brusa_cAmps);
 	TEST_ASSERT_EQUAL(true, out_state.close_contactors);
 	TEST_ASSERT_EQUAL(BCM_BALANCE_OFF, out_state.balance_mVolts);
+
+	// Turn off Charging
+	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_IDLE, &out_state));
+	TEST_ASSERT_EQUAL(CHRG_OFF, Charge_GetMode());
+	TEST_ASSERT_EQUAL(0, out_state.brusa_mVolts);
+	TEST_ASSERT_EQUAL(0, out_state.brusa_cAmps);
+	TEST_ASSERT_EQUAL(false, out_state.close_contactors);
 }
 
 TEST(Charge_Test, test_to_cc_to_cv_w_bal) {
@@ -232,6 +253,13 @@ TEST(Charge_Test, test_to_cc_to_cv_w_bal) {
 	TEST_ASSERT_EQUAL(CURRENT_LIMIT, out_state.brusa_cAmps);
 	TEST_ASSERT_EQUAL(true, out_state.close_contactors);
 	TEST_ASSERT_EQUAL(pack_state.pack_min_mVolts, out_state.balance_mVolts);
+
+	// Turn off Charging
+	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_IDLE, &out_state));
+	TEST_ASSERT_EQUAL(CHRG_OFF, Charge_GetMode());
+	TEST_ASSERT_EQUAL(0, out_state.brusa_mVolts);
+	TEST_ASSERT_EQUAL(0, out_state.brusa_cAmps);
+	TEST_ASSERT_EQUAL(false, out_state.close_contactors);
 }
 
 TEST(Charge_Test, test_to_cc_to_cv_w_out_bal) {
@@ -270,6 +298,13 @@ TEST(Charge_Test, test_to_cc_to_cv_w_out_bal) {
 	TEST_ASSERT_EQUAL(CURRENT_LIMIT, out_state.brusa_cAmps);
 	TEST_ASSERT_EQUAL(true, out_state.close_contactors);
 	TEST_ASSERT_EQUAL(BCM_BALANCE_OFF, out_state.balance_mVolts);
+
+	// Turn off Charging
+	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_IDLE, &out_state));
+	TEST_ASSERT_EQUAL(CHRG_OFF, Charge_GetMode());
+	TEST_ASSERT_EQUAL(0, out_state.brusa_mVolts);
+	TEST_ASSERT_EQUAL(0, out_state.brusa_cAmps);
+	TEST_ASSERT_EQUAL(false, out_state.close_contactors);
 }
 
 TEST(Charge_Test, test_to_cv_to_done) {
@@ -303,6 +338,13 @@ TEST(Charge_Test, test_to_cv_to_done) {
 	pack_state.msTicks = 60000;
 	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_NONE, &out_state));
 	TEST_ASSERT_EQUAL(CHRG_DONE, Charge_GetMode());
+
+	// Turn off Charging
+	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_IDLE, &out_state));
+	TEST_ASSERT_EQUAL(CHRG_OFF, Charge_GetMode());
+	TEST_ASSERT_EQUAL(0, out_state.brusa_mVolts);
+	TEST_ASSERT_EQUAL(0, out_state.brusa_cAmps);
+	TEST_ASSERT_EQUAL(false, out_state.close_contactors);
 }
 
 TEST(Charge_Test, test_fully_balance) {
@@ -350,11 +392,17 @@ TEST(Charge_Test, test_fully_balance) {
 	TEST_ASSERT_EQUAL(CC_PACK_MVOLTS, out_state.brusa_mVolts);
 	TEST_ASSERT_EQUAL(CURRENT_LIMIT, out_state.brusa_cAmps);
 	TEST_ASSERT_EQUAL(true, out_state.close_contactors);
-	TEST_ASSERT_EQUAL(BCM_BALANCE_OFF, out_state.balance_mVolts);	
+	TEST_ASSERT_EQUAL(BCM_BALANCE_OFF, out_state.balance_mVolts);
+
+	// Turn off Charging
+	TEST_ASSERT_EQUAL(CHRG_OK, Charge_Step(&pack_state, REQ_IDLE, &out_state));
+	TEST_ASSERT_EQUAL(CHRG_OFF, Charge_GetMode());
+	TEST_ASSERT_EQUAL(0, out_state.brusa_mVolts);
+	TEST_ASSERT_EQUAL(0, out_state.brusa_cAmps);
+	TEST_ASSERT_EQUAL(false, out_state.close_contactors);	
 }
 
-TEST_GROUP_RUNNER(Charge_Test)
-{
+TEST_GROUP_RUNNER(Charge_Test) {
 	RUN_TEST_CASE(Charge_Test, test_contactors_open);
   	RUN_TEST_CASE(Charge_Test, test_to_cc_w_bal);
   	RUN_TEST_CASE(Charge_Test, test_to_cc_w_out_bal);
@@ -365,3 +413,10 @@ TEST_GROUP_RUNNER(Charge_Test)
   	RUN_TEST_CASE(Charge_Test, test_to_cv_to_done);
   	RUN_TEST_CASE(Charge_Test, test_fully_balance);
 }
+
+
+
+
+
+
+
