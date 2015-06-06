@@ -1,4 +1,4 @@
-update=Saturday, May 09, 2015 'PMt' 03:23:24 PM
+update=Saturday, May 30, 2015 'PMt' 05:16:23 PM
 version=1
 last_client=kicad
 [general]
@@ -31,7 +31,7 @@ BoardOutlineThickness=0.100000000000
 ModuleOutlineThickness=0.150000000000
 [eeschema]
 version=1
-LibDir=../../EVT_KICAD_LIBS
+LibDir=../../../../Documents/EVT/EVT_KICAD_LIBS
 [eeschema/libraries]
 LibName1=power
 LibName2=device
@@ -68,5 +68,4 @@ LibName32=MITEVT_mcontrollers
 LibName33=MITEVT_OPTO
 LibName34=MITEVT_REG
 LibName35=MITEVT_ANALOG
-LibName36=/Users/jimmy/Documents/MIT/EVT/EVT_KICAD_LIBS/MITEVT_mcontrollers
-LibName37=/Users/jimmy/Documents/MIT/EVT/EVT_KICAD_LIBS/MITEVT_interface
+LibName36=MITEVT_power
