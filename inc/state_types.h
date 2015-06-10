@@ -5,20 +5,19 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-//-------------------------
-// Type Converters
-
-// #define num2mVolts(num) (uint32_t)(num/2+1000)
-// #define mVolts2Num(mvolts) (uint32_t)((mvolts-1000)*2)
-
-// #define MAX_CELL_V 	mVolts2Num(3800) 		// Maximum Allowed Cell Voltage of 3.8V
-// #define MIN_CELL_V  mVolts2Num(2700) 		// Minimum Allowed Cell Voltage of 2.7V
-
 // ------------------------------------------------
 // Structs and Enum
+typedef enum {	ERROR_NONE = 0,
+				ERROR_LOW_VOLTAGE = 1,
+				ERROR_HIGH_VOLTAGE = 2,
+				ERROR_CAN_BUS = 3,
+				ERROR_INCOMPATIBLE_MODE = 4,
+				ERROR_CONTACTOR = 5,
+				ERROR_CHARGE_SM = 6} ERROR_T;
 
 typedef enum {IDLE, CHARGING, DRAINING} MODE_T;
 typedef enum {REQ_IDLE, REQ_CHARGING, REQ_DRAINING, REQ_NONE} MODE_REQUEST_T;
+typedef enum {INP_CHRG, INP_DRAIN, INP_IDLE} MODE_INPUT_T;
 
 typedef struct {
 	uint32_t pack_min_mVolts;
