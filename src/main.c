@@ -62,9 +62,6 @@ static CCAN_MSG_OBJ_T _rx_buffer[CCAN_BUF_SIZE];
 static MBB_CMD_T mbb_cmd;
 static MBB_STD_T mbb_std;
 
-static MODE_T mode = IDLE;
-static MODE_REQUEST_T requested_mode = REQ_NONE;
-
 static PACK_STATE_T pack_state;
 static OUTPUT_STATE_T out_state;
 
@@ -126,25 +123,6 @@ void decodeBrusa(CCAN_MSG_OBJ_T *msg) {
 	}
 }
 
-MODE_T getNextMode(MODE_REQUEST_T requested_mode, MODE_T mode) {
-	if (requested_mode == REQ_IDLE) {
-		return IDLE;
-	} else if (requested_mode == REQ_NONE) {
-		return mode;
-	} else {
-		if (mode == IDLE) {
-			if (requested_mode == REQ_CHARGING) {
-				return CHARGING;
-			} else {
-				return DRAINING;
-			}
-		} else {
-			_error(ERROR_INCOMPATIBLE_MODE, true, false);
-			return mode;
-		}
-	}
-}
-
 // ------------------------------------------------
 // IRQs
 
@@ -157,27 +135,7 @@ void TIMER32_0_IRQHandler(void) {
 	if (Chip_TIMER_MatchPending(LPC_TIMER32_0, 0)) {
 		Chip_TIMER_ClearMatch(LPC_TIMER32_0, 0);
 
-		// bool rec =  brusa_messages_received[0] && 
-		// 			brusa_messages_received[1] &&
-		// 			brusa_messages_received[2] && 
-		// 			brusa_messages_received[3] &&
-		// 			brusa_messages_received[4];
-		// if (!(rec)) {
-		// 	DEBUG_Println("N");
-		// 	// return;
-		// } else {
-		// 	DEBUG_Println("Y");
-		// }
 		brusa_message_send = true;
-		// Brusa_MakeCTL(&brusa_control, &mcp_msg_obj);
-		// MCP2515_LoadBuffer(0, &mcp_msg_obj);
-		// MCP2515_SendBuffer(0);
-		// brusa_control_count = brusa_control_count + 1;
-		// brusa_messages_received[0] = false;
-		// brusa_messages_received[1] = false;
-		// brusa_messages_received[2] = false;
-		// brusa_messages_received[3] = false;
-		// brusa_messages_received[4] = false;
 	}
 }
 
@@ -284,6 +242,21 @@ void Init_Core(void) {
 	}
 }
 
+void Init_SM(void) {
+
+	CHARGING_CONFIG_T config;
+	config.pack_s = 22;
+	config.pack_p = 1;
+	config.max_cell_mVolts = 3.6;
+	config.cc_cell_mVolts = 3.7;
+	config.cell_capacity_cAmpHours = 3;
+	config.cell_c_rating = 1;
+
+	Charge_Config(&config);
+	SSM_Init();
+
+}
+
 void Init_Board(void) {
 	// ------------------------------------------------
 	// Board Periph Init
@@ -306,9 +279,6 @@ void Init_Globals(void) {
 	brusa_control.max_mains_cAmps = BRUSA_MAX_MAINS_CAMPS;
 	brusa_control.output_mVolts = 0;
 	brusa_control.output_cAmps = 0;
-
-	mode = IDLE;
-	requested_mode = REQ_NONE;
 
 	pack_state.pack_min_mVolts = 0xFFFFFFFF;
 	pack_state.pack_node_min = 0;
@@ -407,7 +377,7 @@ void Init_Timers(void) {
 
 bool b = true;
 
-int main(void) {
+int main2(void) {
 	Init_Core();
 	Init_Board();
 	Init_Globals();
@@ -523,10 +493,11 @@ int main(void) {
 	}
 }
 
-int main2(void)
+int main(void)
 {
 
 	Init_Core();
+	Init_SM();
 	Init_Board();
 	Init_Globals();
 	Init_CAN();
@@ -538,6 +509,7 @@ int main2(void)
 	DEBUG_Print("Started Up\r\n");
 
 	while(1) {
+
 		uint8_t count;
 		if ((count = Chip_UART_Read(LPC_USART, Rx_Buf, UART_RX_BUF_SIZE)) != 0) {
 			//DEBUG_Write(Rx_Buf, count);
@@ -566,130 +538,77 @@ int main2(void)
 			}
 		}
 
+
+		MODE_INPUT_T inp = INP_IDLE;
 		// Detect requests
 		if (!Board_Switch_Read()) {
-			if (mode != CHARGING) {
-				requested_mode = REQ_CHARGING;
-				DEBUG_Print("Charge Request Received\r\n");
-			}
+			inp = INP_CHRG;
 		} else {
-			if (mode == CHARGING) {
-				requested_mode = REQ_IDLE;
-				DEBUG_Print("Idle Request Received\r\n");
-			}
+			inp = INP_IDLE;
 		}
 
-		MODE_T old_mode = mode;
-		mode = getNextMode(requested_mode, mode);
-		if (old_mode != mode) {
-			// Changed mode
-			if (old_mode == CHARGING) {
-				while (Charge_GetMode() != CHRG_OFF) {
-					Charge_Step(&pack_state, REQ_IDLE, &out_state);
-					if (!out_state.close_contactors) {
-						Board_Close_Contactors(false);
-					}
-					pack_state.contactors_closed = Board_Contactors_Closed();
-				}
-			} else if (old_mode == DRAINING) {
-
-			}
-
-			if (mode == CHARGING) {
-				Charge_Step(&pack_state, REQ_CHARGING, &out_state);
-			} else if (mode == DRAINING) {
-				Charge_Step(&pack_state, REQ_DRAINING, &out_state);
-			}
-		}
-
+		// Update some more important shit
+		pack_state.contactors_closed = Board_Contactors_Closed();
 		pack_state.msTicks = msTicks;
-		CHARGING_STATUS_T status;
-		// Handle mode functionality
-		if (mode == IDLE) {
-			// Do nothing?
-		} else if (mode == CHARGING) {
-			// Update Charge SM
-			status = Charge_Step(&pack_state, REQ_NONE, &out_state);
-			if (status == CHRG_ERROR) {
-				_error(ERROR_CHARGE_SM, true, false);
-				Board_Close_Contactors(false);
-				requested_mode = IDLE;
-				continue;
-			}
-		} else if (mode == DRAINING) {
-			// Update Drain SM
+
+		// SSM Step
+		ERROR_T result = SSM_Step(&pack_state, inp, &out_state);
+		if (result != ERROR_NONE) {
+			_error(result, true, false);
 		}
 
+		// Do as SSM says
 		if (out_state.close_contactors && !Board_Contactors_Closed()) {
 			Board_Close_Contactors(true);
 		} else if (!out_state.close_contactors && Board_Contactors_Closed()) {
 			Board_Close_Contactors(false);
 		}
-		pack_state.contactors_closed = Board_Contactors_Closed();
 
 		if (out_state.brusa_mVolts != 0 || out_state.brusa_cAmps != 0) {
 			brusa_control.output_mVolts = out_state.brusa_mVolts;
 			brusa_control.output_cAmps = out_state.brusa_cAmps;
 			Chip_TIMER_Enable(LPC_TIMER32_0);
 		} else {
+			brusa_control.output_mVolts = 0;
+			brusa_control.output_cAmps = 0;
 			Chip_TIMER_Disable(LPC_TIMER32_0);
 		}
 
 		mbb_cmd.balance_target_mVolts = out_state.balance_mVolts;
 
 		// Retrive any available Brusa Messages for shits
-		uint8_t tmp = 0;
-		MCP2515_Read(CANINTF, &tmp, 1);
-		if (tmp & 1) { //Receive buffer 0 full
+		int8_t tmp = MCP2515_GetFullReceiveBuffer();
+		if (tmp == 2) {
 			MCP2515_ReadBuffer(&mcp_msg_obj, 0);
-			if (mcp_msg_obj.mode_id == NLG5_STATUS) {
-				Brusa_DecodeStatus(&brusa_status, &mcp_msg_obj);
-			} else if (mcp_msg_obj.mode_id == NLG5_ACT_I) {
-				Brusa_DecodeActI(&brusa_actual_1, &mcp_msg_obj);
-			} else if (mcp_msg_obj.mode_id == NLG5_ACT_II) {
-				Brusa_DecodeActII(&brusa_actual_2, &mcp_msg_obj);
-			} else if (mcp_msg_obj.mode_id == NLG5_TEMP) {
-				Brusa_DecodeTemp(&brusa_temp, &mcp_msg_obj);
-			} else {
-				DEBUG_Print("Received Unknown Message on Brusa Bus");
-			}
+			decodeBrusa(&mcp_msg_obj);
+			MCP2515_ReadBuffer(&mcp_msg_obj, 1);
+			decodeBrusa(&mcp_msg_obj);
+		} else if (tmp == 0) { // Receive Buffer 0 Full
+			MCP2515_ReadBuffer(&mcp_msg_obj, tmp);
+			decodeBrusa(&mcp_msg_obj);
+		} else if (tmp == 1) { //Receive buffer 1 full
+			MCP2515_ReadBuffer(&mcp_msg_obj, tmp);
+			decodeBrusa(&mcp_msg_obj);
+		} 
+
+		if (brusa_message_send) {
+			brusa_message_send = false;
+			Brusa_MakeCTL(&brusa_control, &mcp_msg_obj);
+			MCP2515_LoadBuffer(0, &mcp_msg_obj);
+			MCP2515_SendBuffer(0);
 		}
 
-		// uint8_t count;
-		// if ((count = Chip_UART_Read(LPC_USART, Rx_Buf, 8)) != 0) {
-		// 	DEBUG_Write(Rx_Buf, count);
-		// 	DEBUG_Print("\r\n");
-		// 	switch (Rx_Buf[0]) {
-		// 		case 's':
-		// 			DEBUG_Print("Status Count: ");
-		// 			itoa(brusa_status_count, str, 10);
-		// 			DEBUG_Print(str);
-		// 			DEBUG_Print(" Act_1 Count: ");
-		// 			itoa(brusa_actual_1_count, str, 10);
-		// 			DEBUG_Print(str);
-		// 			DEBUG_Print(" Act_2 Count: ");
-		// 			itoa(brusa_actual_2_count, str, 10);
-		// 			DEBUG_Print(str);
-		// 			DEBUG_Print("\r\n");
-					
-		// 			DEBUG_Print("Actual Mains Voltage: 0x");
-		// 			itoa(brusa_actual_1.mains_voltage, str, 16);
-		// 			DEBUG_Print(str);
-		// 			DEBUG_Print("\r\n");
-
-		// 			DEBUG_Print("Mains type: ");
-		// 			itoa(brusa_status.mains_type, str, 10);
-		// 			DEBUG_Print(str);
-		// 			DEBUG_Print("\r\n");
-
-		// 			DEBUG_Print("Temp: 0x");
-		// 			itoa(brusa_temp.power_temp, str, 16);
-		// 			DEBUG_Print(str);
-		// 			DEBUG_Print("\r\n");
-		// 			break;
-
-		// 	}
-		// }
+		switch (SSM_GetMode()) {
+			case IDLE:
+				Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, Hertz2Ticks(BCM_POLL_IDLE_FREQ));
+				break;
+			case CHARGING:
+				Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, Hertz2Ticks(BCM_POLL_CHARGING_FREQ));
+				break;
+			case DRAINING:
+				Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, Hertz2Ticks(BCM_POLL_DRAINING_FREQ));
+				break;
+		}
 
 	}
 

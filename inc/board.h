@@ -9,6 +9,7 @@
 #include "util.h"
 #include "charge.h"
 #include "drain.h"
+#include "ssm.h"
 
 #define LED1_GPIO 2
 #define LED1_PIN 10

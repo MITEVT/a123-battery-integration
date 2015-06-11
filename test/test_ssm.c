@@ -39,12 +39,34 @@ TEST_TEAR_DOWN(SSM_Test) {
 TEST(SSM_Test, test_to_charge) {
 	// SuperState Machine should start out OFF
 	TEST_ASSERT_EQUAL(IDLE, SSM_GetMode());
+	TEST_ASSERT_EQUAL(ERROR_NONE, SSM_Step(&pack_state, INP_CHRG, &out_state));
+	TEST_ASSERT_EQUAL(CHARGING, SSM_GetMode());
+	TEST_ASSERT_EQUAL(DRAIN_OFF, Drain_GetMode());
 }
 
+TEST(SSM_Test, test_to_drain) {
+	TEST_ASSERT_EQUAL(IDLE, SSM_GetMode());
+	TEST_ASSERT_EQUAL(ERROR_NONE, SSM_Step(&pack_state, INP_DRAIN, &out_state));
+	TEST_ASSERT_EQUAL(DRAINING, SSM_GetMode());
+	TEST_ASSERT_EQUAL(CHRG_OFF, Charge_GetMode());
+}
 
+TEST(SSM_Test, test_to_charge_drain) {
+	TEST_ASSERT_EQUAL(IDLE, SSM_GetMode());
+	TEST_ASSERT_EQUAL(ERROR_NONE, SSM_Step(&pack_state, INP_CHRG, &out_state));
+	TEST_ASSERT_EQUAL(CHARGING, SSM_GetMode());
+	TEST_ASSERT_EQUAL(ERROR_NONE, SSM_Step(&pack_state, INP_IDLE, &out_state));
+	TEST_ASSERT_EQUAL(ERROR_NONE, SSM_Step(&pack_state, INP_IDLE, &out_state)); 
+	TEST_ASSERT_EQUAL(IDLE, SSM_GetMode());
+	TEST_ASSERT_EQUAL(ERROR_NONE, SSM_Step(&pack_state, INP_DRAIN, &out_state));
+	TEST_ASSERT_EQUAL(DRAINING, SSM_GetMode());
+
+}
 
 TEST_GROUP_RUNNER(SSM_Test) {
 	RUN_TEST_CASE(SSM_Test, test_to_charge);
+	RUN_TEST_CASE(SSM_Test, test_to_drain);
+	RUN_TEST_CASE(SSM_Test, test_to_charge_drain);
 }
 
 
