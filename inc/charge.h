@@ -13,7 +13,6 @@
 
 
 typedef enum {CHRG_OFF, CHRG_INIT, CHRG_CC, CHRG_CV, CHRG_DONE} CHARGING_MODE_T;
-typedef enum {CHRG_OK, CHRG_ERROR} CHARGING_STATUS_T;
 
 typedef struct {
 	uint8_t pack_s; 				// Number of cells in series
