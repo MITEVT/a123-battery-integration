@@ -19,7 +19,7 @@ void Charge_Config(CHARGING_CONFIG_T *config) {
 	// Store all values into EEPROM
 }
 
-CHARGING_STATUS_T Charge_Step(PACK_STATE_T *pack_state, MODE_REQUEST_T req_mode, OUTPUT_STATE_T *out_state) {
+ERROR_T Charge_Step(PACK_STATE_T *pack_state, MODE_REQUEST_T req_mode, OUTPUT_STATE_T *out_state) {
 	switch (req_mode) {
 		case REQ_CHARGING:
 			// If starting from not charging, go to init, else stay where you are
@@ -109,7 +109,7 @@ handler:
 						out_state->balance_mVolts = BCM_BALANCE_OFF;
 						mode = CHRG_DONE;
 						if (balancing) {
-							return CHRG_ERROR;
+							return ERROR_CHARGE_SM;
 						}
 						break;
 					} 
@@ -135,7 +135,7 @@ handler:
 			break;
 	}
 
-	return CHRG_OK;
+	return ERROR_NONE;
 }
 
 CHARGING_MODE_T Charge_GetMode() {

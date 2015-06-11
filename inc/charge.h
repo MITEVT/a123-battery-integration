@@ -8,8 +8,8 @@
 #define BCM_BAL_ON_THRESH 1	    // As stated by datasheet, Value at which must stop charging
 #define BCM_BAL_OFF_THRESH 4
 #define BCM_BAL_CELL_V_MIN 3400
-#define BCM_BAL_ENABLE(pack_v_max, pack_v_min) ((pack_v_max - pack_v_min) >= BCM_BAL_OFF_THRESH) && pack_v_min >= BCM_BAL_CELL_V_MIN
-#define BCM_BAL_DISABLE(pack_v_max, pack_v_min) ((pack_v_max - pack_v_min) <= BCM_BAL_ON_THRESH) || pack_v_min < BCM_BAL_CELL_V_MIN
+#define BCM_BAL_ENABLE(pack_v_max, pack_v_min) (((pack_v_max - pack_v_min) >= BCM_BAL_OFF_THRESH) && pack_v_min >= BCM_BAL_CELL_V_MIN)
+#define BCM_BAL_DISABLE(pack_v_max, pack_v_min) (((pack_v_max - pack_v_min) <= BCM_BAL_ON_THRESH) || pack_v_min < BCM_BAL_CELL_V_MIN)
 
 
 typedef enum {CHRG_OFF, CHRG_INIT, CHRG_CC, CHRG_CV, CHRG_DONE} CHARGING_MODE_T;
@@ -25,7 +25,7 @@ typedef struct {
 } CHARGING_CONFIG_T;
 
 void Charge_Config(CHARGING_CONFIG_T *config);
-CHARGING_STATUS_T Charge_Step(PACK_STATE_T*, MODE_REQUEST_T, OUTPUT_STATE_T*);
+ERROR_T Charge_Step(PACK_STATE_T*, MODE_REQUEST_T, OUTPUT_STATE_T*);
 CHARGING_MODE_T Charge_GetMode(void);
 
 #endif
