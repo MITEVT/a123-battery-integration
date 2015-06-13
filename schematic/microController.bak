@@ -53,41 +53,30 @@ Text HLabel 7950 2900 2    60   Output ~ 0
 CAN1_RX
 Text HLabel 7950 2800 2    60   Output ~ 0
 CAN1_TX
-Text HLabel 2450 4850 0    60   Output ~ 0
+Text HLabel 1700 4850 0    60   Output ~ 0
 CAN2_TX
-Text HLabel 2450 4750 0    60   Output ~ 0
+Text HLabel 1700 4750 0    60   Output ~ 0
 CAN2_RX
 $Comp
 L SPST SW302
 U 1 1 553C56D1
-P 1900 2350
-F 0 "SW302" H 1900 2450 70  0000 C CNN
-F 1 "SPST" H 1900 2250 70  0000 C CNN
-F 2 "" H 1900 2350 60  0000 C CNN
-F 3 "" H 1900 2350 60  0000 C CNN
-	1    1900 2350
+P 1700 2350
+F 0 "SW302" H 1700 2450 70  0000 C CNN
+F 1 "SPST" H 1700 2250 70  0000 C CNN
+F 2 "" H 1700 2350 60  0000 C CNN
+F 3 "" H 1700 2350 60  0000 C CNN
+	1    1700 2350
 	1    0    0    -1  
 $EndComp
 $Comp
 L SPST SW301
 U 1 1 55450B97
-P 1900 1900
-F 0 "SW301" H 1900 2000 50  0000 C CNN
-F 1 "SPST" H 1900 1800 50  0000 C CNN
-F 2 "" H 1900 1900 60  0000 C CNN
-F 3 "" H 1900 1900 60  0000 C CNN
-	1    1900 1900
-	1    0    0    -1  
-$EndComp
-$Comp
-L GND #PWR036
-U 1 1 55450C9C
-P 1050 2050
-F 0 "#PWR036" H 1050 1800 60  0001 C CNN
-F 1 "GND" H 1050 1900 60  0000 C CNN
-F 2 "" H 1050 2050 60  0000 C CNN
-F 3 "" H 1050 2050 60  0000 C CNN
-	1    1050 2050
+P 1700 1900
+F 0 "SW301" H 1700 2000 50  0000 C CNN
+F 1 "SPST" H 1700 1800 50  0000 C CNN
+F 2 "" H 1700 1900 60  0000 C CNN
+F 3 "" H 1700 1900 60  0000 C CNN
+	1    1700 1900
 	1    0    0    -1  
 $EndComp
 $Comp
@@ -310,17 +299,6 @@ F 3 "" H 3600 1600 60  0000 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L GND #PWR044
-U 1 1 55454D7C
-P 1050 2450
-F 0 "#PWR044" H 1050 2200 60  0001 C CNN
-F 1 "GND" H 1050 2300 60  0000 C CNN
-F 2 "" H 1050 2450 60  0000 C CNN
-F 3 "" H 1050 2450 60  0000 C CNN
-	1    1050 2450
-	1    0    0    -1  
-$EndComp
-$Comp
 L GND #PWR045
 U 1 1 554552F0
 P 3900 6100
@@ -405,22 +383,18 @@ Wire Wire Line
 	6300 5050 5350 5050
 Wire Wire Line
 	5350 5250 5700 5250
-Connection ~ 1050 2050
 Wire Wire Line
 	1050 1900 1050 2050
 Wire Wire Line
-	1400 1900 1050 1900
-Connection ~ 1400 1900
+	1200 1900 1050 1900
 Wire Wire Line
-	2400 1900 2500 1900
-Connection ~ 1400 2350
-Connection ~ 1050 2450
+	2200 1900 2500 1900
 Wire Wire Line
-	2400 2350 2700 2350
+	2200 2350 2700 2350
 Wire Wire Line
 	1050 2350 1050 2450
 Wire Wire Line
-	1050 2350 1400 2350
+	1050 2350 1200 2350
 Wire Wire Line
 	7950 2900 7850 2900
 Wire Wire Line
@@ -434,7 +408,9 @@ Wire Wire Line
 Wire Wire Line
 	6900 5200 6900 5550
 Wire Wire Line
-	5700 5750 6900 5750
+	5700 5750 6450 5750
+Wire Wire Line
+	6450 5750 6900 5750
 Connection ~ 6300 5550
 Connection ~ 6600 5550
 Wire Wire Line
@@ -454,7 +430,9 @@ Wire Wire Line
 Wire Wire Line
 	6000 3300 5350 3300
 Wire Wire Line
-	4000 1200 4000 1650
+	4000 1200 4000 1250
+Wire Wire Line
+	4000 1250 4000 1650
 Wire Wire Line
 	3800 1250 3800 1650
 Connection ~ 4000 1250
@@ -469,9 +447,15 @@ Wire Wire Line
 Wire Wire Line
 	3600 1550 3600 1600
 Wire Wire Line
-	3200 1250 4000 1250
+	3200 1250 3600 1250
 Wire Wire Line
-	3900 5600 3900 6100
+	3600 1250 3800 1250
+Wire Wire Line
+	3800 1250 4000 1250
+Wire Wire Line
+	3900 5600 3900 5750
+Wire Wire Line
+	3900 5750 3900 6100
 Wire Wire Line
 	3900 5750 4100 5750
 Wire Wire Line
@@ -485,7 +469,9 @@ Wire Wire Line
 Wire Wire Line
 	8300 4900 8300 4800
 Wire Wire Line
-	8300 4100 8300 4600
+	8300 4100 8300 4400
+Wire Wire Line
+	8300 4400 8300 4600
 Wire Wire Line
 	6550 2900 6000 2900
 Wire Wire Line
@@ -495,7 +481,9 @@ Wire Wire Line
 Wire Wire Line
 	6100 3200 6550 3200
 Wire Wire Line
-	8500 3850 8500 4600
+	8500 3850 8500 4400
+Wire Wire Line
+	8500 4400 8500 4600
 Wire Wire Line
 	7850 3300 7950 3300
 Wire Wire Line
@@ -507,11 +495,13 @@ Wire Wire Line
 Wire Wire Line
 	8700 3850 8700 3450
 Wire Wire Line
-	2500 850  2500 2250
+	2500 850  2500 1900
+Wire Wire Line
+	2500 1900 2500 2250
 Connection ~ 2500 1900
 Wire Wire Line
 	4400 1200 7050 1200
-Text Label 6800 1200 0    60   ~ 0
+Text Label 4900 1200 0    60   ~ 0
 CLKOUT
 Wire Wire Line
 	8700 1200 8700 2950
@@ -531,11 +521,13 @@ F 3 "" H 4250 2450 60  0000 C CNN
 	1    0    0    -1  
 $EndComp
 Wire Wire Line
-	2450 4750 2700 4750
+	1700 4750 2700 4750
 Wire Wire Line
-	2450 4850 2700 4850
+	1700 4850 2700 4850
 Wire Wire Line
-	8300 4900 8500 4900
+	8300 4900 8400 4900
+Wire Wire Line
+	8400 4900 8500 4900
 Wire Wire Line
 	8400 4900 8400 5050
 Connection ~ 8400 4900
@@ -592,7 +584,9 @@ Wire Wire Line
 Wire Wire Line
 	6500 2450 6500 2800
 Wire Wire Line
-	7200 2400 7200 2500
+	7200 2400 7200 2450
+Wire Wire Line
+	7200 2450 7200 2500
 Wire Wire Line
 	6500 2450 7200 2450
 Connection ~ 7200 2450
@@ -608,7 +602,9 @@ F 3 "" H 9100 5550 60  0000 C CNN
 	-1   0    0    -1  
 $EndComp
 Wire Wire Line
-	8400 5750 7100 5750
+	8400 5750 7900 5750
+Wire Wire Line
+	7900 5750 7100 5750
 Wire Wire Line
 	7100 5750 7100 4750
 Wire Wire Line
@@ -626,7 +622,9 @@ Wire Wire Line
 Wire Wire Line
 	7200 4600 7200 5650
 Wire Wire Line
-	7200 5650 8400 5650
+	7200 5650 7500 5650
+Wire Wire Line
+	7500 5650 8400 5650
 NoConn ~ 8400 5450
 NoConn ~ 9800 5350
 NoConn ~ 9800 5450
@@ -656,7 +654,9 @@ F 3 "" H 9100 4650 60  0000 C CNN
 	1    0    0    -1  
 $EndComp
 Wire Wire Line
-	9100 4650 9100 5050
+	9100 4650 9100 4700
+Wire Wire Line
+	9100 4700 9100 5050
 $Comp
 L C_Small C305
 U 1 1 556AA5A3
@@ -687,16 +687,16 @@ $EndComp
 Wire Wire Line
 	9500 4950 9500 5000
 Wire Wire Line
-	5350 4650 5650 4650
+	5350 4650 5850 4650
 Wire Wire Line
-	5350 4750 5650 4750
-Text HLabel 5650 4650 2    60   Output ~ 0
+	5350 4750 5850 4750
+Text HLabel 5850 4650 2    60   Output ~ 0
 CON+
-Text HLabel 5650 4750 2    60   Output ~ 0
+Text HLabel 5850 4750 2    60   Output ~ 0
 CON-
 Wire Wire Line
-	5350 3500 5650 3500
-Text HLabel 5650 3500 2    60   Output ~ 0
+	5350 3500 5900 3500
+Text HLabel 5900 3500 2    60   Output ~ 0
 CON_PRE
 Wire Wire Line
 	6550 3850 6450 3850
@@ -817,6 +817,62 @@ F 1 "+3.3V" H 7900 5440 50  0000 C CNN
 F 2 "" H 7900 5300 60  0000 C CNN
 F 3 "" H 7900 5300 60  0000 C CNN
 	1    7900 5300
+	1    0    0    -1  
+$EndComp
+Text Label 8050 1200 0    60   ~ 0
+CLKOUT_BUFF
+Text Label 8700 3750 0    60   ~ 0
+XTAL_H
+Text Label 8300 4250 2    60   ~ 0
+XTAL_LOW
+Text Label 7950 3300 0    60   ~ 0
+CAN_OSC1
+Text Label 7950 3200 0    60   ~ 0
+CAN_OSC2
+Text Label 5600 2600 0    60   ~ 0
+CAN1_MISO
+Text Label 5600 2700 0    60   ~ 0
+CAN1_MOSI
+Text Label 5600 2800 0    60   ~ 0
+CAN1_SCK
+Text Label 5450 3300 0    60   ~ 0
+CAN1_SSEL
+Text Label 5500 2900 0    60   ~ 0
+CAN1_INT
+Text Label 5600 3800 0    60   ~ 0
+EEPROM_SCL
+Text Label 5600 3900 0    60   ~ 0
+EEPROM_SDA
+Text Label 2050 4750 0    60   ~ 0
+CAN2_RX
+Text Label 2050 4850 0    60   ~ 0
+CAN2_TX
+Text Label 5500 4650 0    60   ~ 0
+CON+
+Text Label 5500 4750 0    60   ~ 0
+CON-
+Text Label 5450 3500 0    60   ~ 0
+CON_PRE
+$Comp
+L GND #PWR?
+U 1 1 557CCCC1
+P 1050 2450
+F 0 "#PWR?" H 1050 2200 50  0001 C CNN
+F 1 "GND" H 1050 2300 50  0000 C CNN
+F 2 "" H 1050 2450 60  0000 C CNN
+F 3 "" H 1050 2450 60  0000 C CNN
+	1    1050 2450
+	1    0    0    -1  
+$EndComp
+$Comp
+L GND #PWR?
+U 1 1 557CCDC3
+P 1050 2050
+F 0 "#PWR?" H 1050 1800 50  0001 C CNN
+F 1 "GND" H 1050 1900 50  0000 C CNN
+F 2 "" H 1050 2050 60  0000 C CNN
+F 3 "" H 1050 2050 60  0000 C CNN
+	1    1050 2050
 	1    0    0    -1  
 $EndComp
 $EndSCHEMATC
