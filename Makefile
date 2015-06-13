@@ -397,7 +397,7 @@ writeflash: all
 
 com:
 	@echo "Opening" $(COMPORT)
-	@picocom -b 9600 $(COMPORT)
+	@picocom -b 57600 $(COMPORT)
 
 #=============================================================================#
 # make clean

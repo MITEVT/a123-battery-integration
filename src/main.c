@@ -1,7 +1,7 @@
 #include "board.h"
 #include <string.h>
 
-#define UART_BAUD 9600
+#define UART_BAUD 57600
 #define SPI_BAUD  500000
 #define CCAN_BAUD 500000
 
@@ -244,15 +244,19 @@ void Init_Core(void) {
 
 void Init_SM(void) {
 
-	CHARGING_CONFIG_T config;
-	config.pack_s = 22;
-	config.pack_p = 1;
-	config.max_cell_mVolts = 3.6;
-	config.cc_cell_mVolts = 3.7;
-	config.cell_capacity_cAmpHours = 3;
-	config.cell_c_rating = 1;
+	CHARGING_CONFIG_T charge_config;
+	charge_config.pack_s = 25;
+	charge_config.pack_p = 1;
+	charge_config.max_cell_mVolts = 3600;
+	charge_config.cc_cell_mVolts = 3700;
+	charge_config.cell_capacity_cAmpHours = 20;
+	charge_config.cell_c_rating = 1;
 
-	Charge_Config(&config);
+	DRAINING_CONFIG_T drain_config;
+	drain_config.min_cell_mVolts = 2500; //Specs say 2000V but lets play it safe for now
+
+	Charge_Config(&charge_config);
+	Drain_Config(&drain_config);
 	SSM_Init();
 
 }
@@ -267,7 +271,9 @@ void Init_Board(void) {
 
 	// ------------------------------------------------
 	// Communication Init
+
 	Board_UART_Init(UART_BAUD);
+
 	Board_SPI_Init(SPI_BAUD);
 	Board_CCAN_Init(CCAN_BAUD, CAN_rx, CAN_tx, CAN_error);
 }
@@ -377,8 +383,9 @@ void Init_Timers(void) {
 
 bool b = true;
 
-int main2(void) {
+int main(void) {
 	Init_Core();
+	Init_SM();
 	Init_Board();
 	Init_Globals();
 	Init_CAN();
@@ -493,7 +500,7 @@ int main2(void) {
 	}
 }
 
-int main(void)
+int main2(void)
 {
 
 	Init_Core();
@@ -512,7 +519,6 @@ int main(void)
 
 		uint8_t count;
 		if ((count = Chip_UART_Read(LPC_USART, Rx_Buf, UART_RX_BUF_SIZE)) != 0) {
-			//DEBUG_Write(Rx_Buf, count);
 			switch (Rx_Buf[0]) {
 				case 'a':
 					itoa(pack_state.pack_min_mVolts, str, 16);
@@ -533,6 +539,31 @@ int main(void)
 					DEBUG_Print("\r\n");
 
 					break;
+				case 'b':				
+					DEBUG_Print("Actual Mains Voltage: ");
+					itoa(brusa_actual_1.mains_mVolts, str, 10);
+					DEBUG_Print(str);
+					DEBUG_Print("\r\n");
+
+					DEBUG_Print("Mains type: ");
+					itoa(brusa_actual_1.mains_cAmps, str, 10);
+					DEBUG_Print(str);
+					DEBUG_Print("\r\n");
+
+					DEBUG_Print("Temp: 0x");
+					itoa(brusa_temp.power_temp, str, 16);
+					DEBUG_Print(str);
+					DEBUG_Print("\r\n");
+					break;
+				case 'c':
+					DEBUG_Print("Actual Out Voltage: ");
+					itoa(brusa_actual_1.output_mVolts, str, 10);
+					DEBUG_Println(str);
+
+					DEBUG_Print("Actual Out Current: ");
+					itoa(brusa_actual_1.output_cAmps, str, 10);
+					DEBUG_Println(str);
+					break;
 				default:
 					DEBUG_Print("Unknown Command\r\n");
 			}
@@ -543,8 +574,10 @@ int main(void)
 		// Detect requests
 		if (!Board_Switch_Read()) {
 			inp = INP_CHRG;
+			DEBUG_Println("CHRG");
 		} else {
 			inp = INP_IDLE;
+			DEBUG_Println("IDLE");
 		}
 
 		// Update some more important shit
@@ -556,6 +589,8 @@ int main(void)
 		if (result != ERROR_NONE) {
 			_error(result, true, false);
 		}
+
+
 
 		// Do as SSM says
 		if (out_state.close_contactors && !Board_Contactors_Closed()) {
