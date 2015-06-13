@@ -586,6 +586,6 @@ Text Label 5850 3250 0    60   ~ 0
 Wire Wire Line
 	5550 3300 5750 3300
 Connection ~ 5750 3300
-Text Label 6000 4000 0    60   ~ 0
+Text Label 5950 4000 0    60   ~ 0
 5V0_FB
 $EndSCHEMATC
