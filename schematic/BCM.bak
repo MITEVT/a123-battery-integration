@@ -80,8 +80,8 @@ Wire Wire Line
 $Sheet
 S 6100 1950 1300 1000
 U 553C04EB
-F0 "Can Isolation" 60
-F1 "CAN_Isolator.sch" 60
+F0 "Can transceiver" 60
+F1 "CAN_transceiver.sch" 60
 F2 "CAN1_RX" O L 6100 2100 60 
 F3 "CAN1_TX" I L 6100 2200 60 
 F4 "CAN2_RX" O L 6100 2400 60 
