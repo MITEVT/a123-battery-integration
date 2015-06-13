@@ -62,7 +62,9 @@ Wire Wire Line
 Wire Wire Line
 	4550 5400 5150 5400
 Wire Wire Line
-	4050 5700 4050 5950
+	4050 5700 4050 5900
+Wire Wire Line
+	4050 5900 4050 5950
 Wire Wire Line
 	2850 5100 3550 5100
 Wire Wire Line
@@ -87,13 +89,17 @@ F 3 "" H 4050 4350 60  0000 C CNN
 	1    0    0    -1  
 $EndComp
 Wire Wire Line
-	4050 4350 4050 4900
+	4050 4350 4050 4400
+Wire Wire Line
+	4050 4400 4050 4900
 Wire Wire Line
 	4550 2550 5100 2550
 Wire Wire Line
 	4550 2750 5100 2750
 Wire Wire Line
-	4050 3050 4050 3300
+	4050 3050 4050 3250
+Wire Wire Line
+	4050 3250 4050 3300
 Wire Wire Line
 	2800 2450 3550 2450
 Wire Wire Line
@@ -139,7 +145,9 @@ F 3 "" H 4050 1700 60  0000 C CNN
 	1    0    0    -1  
 $EndComp
 Wire Wire Line
-	4050 1700 4050 2250
+	4050 1700 4050 1750
+Wire Wire Line
+	4050 1750 4050 2250
 $Comp
 L C_Small C301
 U 1 1 556A4F72

@@ -872,4 +872,6 @@ F 3 "" H 1700 2350 60  0000 C CNN
 	1    1700 2350
 	1    0    0    -1  
 $EndComp
+Text Label 2250 2350 0    60   ~ 0
+MCU_RESET
 $EndSCHEMATC
