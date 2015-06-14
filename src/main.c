@@ -65,6 +65,10 @@ static MBB_STD_T mbb_std;
 static PACK_STATE_T pack_state;
 static OUTPUT_STATE_T out_state;
 
+static MBB_EXT_T mbb_ext_1;
+static MBB_EXT_T mbb_ext_2;
+
+
 // ------------------------------------------------
 // Helper functions that don't belong in util because systick and printing
 
@@ -101,23 +105,30 @@ void _error(ERROR_T errorNo, bool flashLED, bool hang) {
 void decodeBrusa(CCAN_MSG_OBJ_T *msg) {
 	if (msg->mode_id == NLG5_STATUS) {
 		Brusa_DecodeStatus(&brusa_status, msg);
-		brusa_messages_received[0] = true;
-		DEBUG_Println(">0");
+		// brusa_messages_received[0] = true;
+		// DEBUG_Println(">0");
 	} else if (msg->mode_id == NLG5_TEMP) {
 		Brusa_DecodeTemp(&brusa_temp, msg);
-		brusa_messages_received[3] = true;
-		DEBUG_Println(">3");
+		// brusa_messages_received[3] = true;
+		// DEBUG_Println(">3");
 	} else if (msg->mode_id == NLG5_ACT_I) {
 		Brusa_DecodeActI(&brusa_actual_1, msg);
-		brusa_messages_received[1] = true;
-		DEBUG_Println(">1");
+		DEBUG_Print("Actual Out Voltage: ");
+		itoa(brusa_actual_1.output_mVolts, str, 10);
+		DEBUG_Println(str);
+
+		DEBUG_Print("Actual Out Current: ");
+		itoa(brusa_actual_1.output_cAmps, str, 10);
+		DEBUG_Println(str);
+		// brusa_messages_received[1] = true;
+		// DEBUG_Println(">1");
 	} else if (msg->mode_id == NLG5_ACT_II) {
 		Brusa_DecodeActII(&brusa_actual_2, msg);
-		brusa_messages_received[2] = true;
-		DEBUG_Println(">2");
+		// brusa_messages_received[2] = true;
+		// DEBUG_Println(">2");
 	} else if (msg->mode_id == NLG5_ERR) {
-		brusa_messages_received[4] = true;
-		DEBUG_Println(">4");
+		// brusa_messages_received[4] = true;
+		// DEBUG_Println(">4");
 	} else {
 		DEBUG_Print("!!U");
 	}
@@ -139,57 +150,35 @@ void TIMER32_0_IRQHandler(void) {
 	}
 }
 
-static bool newMessage = true;
-
+static volatile bool newMessage = true;
+static uint8_t arbitraryCount = 0;
 // Used for sending BCM_CMD and checking for available data
 void TIMER32_1_IRQHandler(void) {
 	Chip_TIMER_ClearMatch(LPC_TIMER32_1, 0);
 	// Update Battery Status
-	if (!RingBuffer_IsEmpty(&rx_buffer)) {
-		CCAN_MSG_OBJ_T temp_msg;
-		RingBuffer_Pop(&rx_buffer, &temp_msg);
-		uint8_t mod_id = temp_msg.mode_id & 0xFF;
-		if ((temp_msg.mode_id & MBB_STD_MASK) == MBB_STD) {
-
-			MBB_DecodeStd(&mbb_std, &temp_msg);
-
-			if (newMessage) {
-				pack_state.pack_min_mVolts = mbb_std.mod_min_mVolts;
-				pack_state.pack_max_mVolts = mbb_std.mod_max_mVolts;
-				pack_state.pack_node_min = mod_id;
-				pack_state.pack_node_max = mod_id;
-				newMessage = false;
-			}
-			if (mbb_std.mod_min_mVolts < pack_state.pack_min_mVolts) {
-				pack_state.pack_min_mVolts = mbb_std.mod_min_mVolts;
-				pack_state.pack_node_min = mod_id;
-			}
-
-			if (mbb_std.mod_max_mVolts > pack_state.pack_max_mVolts) {
-				pack_state.pack_max_mVolts = mbb_std.mod_max_mVolts;
-				pack_state.pack_node_max = mod_id;
-			}
-
-			itoa(mbb_std.balance_c_count, int_str, 16);
-			DEBUG_Print("Active Balance Circuits: 0x");
-			DEBUG_Print(int_str);
-			DEBUG_Print("\r\n");
-
-			pack_state.messagesReceived++;
-			pack_state.pack_avg_mVolts = (pack_state.pack_avg_mVolts * (pack_state.messagesReceived - 1) + mbb_std.mod_avg_mVolts) / pack_state.messagesReceived;
-		}
-	} else {
+	if (RingBuffer_IsEmpty(&rx_buffer)) {
 		// Send BCM_CMD
 		mbb_cmd.request_type = BCM_REQUEST_TYPE_STD;
 		mbb_cmd.request_id = 5; 		// Should I change this?
-		mbb_cmd.balance_target_mVolts = BCM_BALANCE_OFF;
+		mbb_cmd.balance = false;
+		mbb_cmd.balance_target_mVolts = 3200;
 		// mbb_cmd.balance_target_mVolts = pack_state.pack_min_mVolts;
 
-		can_msg_obj.msgobj = 2;
+		can_msg_obj.msgobj = 7;
 		MBB_MakeCMD(&mbb_cmd, &can_msg_obj);
 		LPC_CCAN_API->can_transmit(&can_msg_obj);	
 
 		newMessage = true;
+		if (arbitraryCount++ == 1) {
+			arbitraryCount = 0;
+			mbb_cmd.request_type = BCM_REQUEST_TYPE_EXT;
+
+			can_msg_obj.msgobj = 6;
+			mbb_cmd.request_id = 6;
+			MBB_MakeCMD(&mbb_cmd, &can_msg_obj);
+			LPC_CCAN_API->can_transmit(&can_msg_obj);
+
+		}
 	}
 }
 
@@ -245,15 +234,15 @@ void Init_Core(void) {
 void Init_SM(void) {
 
 	CHARGING_CONFIG_T charge_config;
-	charge_config.pack_s = 25;
-	charge_config.pack_p = 1;
+	charge_config.pack_s = 22;
+	charge_config.pack_p = 3;
 	charge_config.max_cell_mVolts = 3600;
 	charge_config.cc_cell_mVolts = 3700;
-	charge_config.cell_capacity_cAmpHours = 20;
-	charge_config.cell_c_rating = 1;
+	charge_config.cell_capacity_cAmpHours = 2000; 	// 20 Ahr
+	charge_config.cell_mC_rating = 16; 				// .016 C
 
 	DRAINING_CONFIG_T drain_config;
-	drain_config.min_cell_mVolts = 2500; //Specs say 2000V but lets play it safe for now
+	drain_config.min_cell_mVolts = 2500; //Specs say 2000mV but lets play it safe for now
 
 	Charge_Config(&charge_config);
 	Drain_Config(&drain_config);
@@ -297,6 +286,12 @@ void Init_Globals(void) {
 	out_state.brusa_mVolts = 0;
 	out_state.brusa_cAmps = 0;
 	out_state.close_contactors = false;
+
+	mbb_ext_1.id = 0xFF;
+	mbb_ext_2.id = 0xFF;
+
+	mbb_ext_1.bal = 0;
+	mbb_ext_2.bal = 0;
 }
 
 void Init_CAN(void) {
@@ -343,8 +338,28 @@ void Init_CAN(void) {
 
 	// Accept all messages on msgobj 1
 	can_msg_obj.msgobj = 1;
-	can_msg_obj.mode_id = 0x000;
-	can_msg_obj.mask = 0x000;
+	can_msg_obj.mode_id = 0x200;
+	can_msg_obj.mask = 0xF00;
+	LPC_CCAN_API->config_rxmsgobj(&can_msg_obj);
+
+	can_msg_obj.msgobj = 2;
+	can_msg_obj.mode_id = 0x300;
+	can_msg_obj.mask = 0xF00;
+	LPC_CCAN_API->config_rxmsgobj(&can_msg_obj);
+
+	can_msg_obj.msgobj = 3;
+	can_msg_obj.mode_id = 0x400;
+	can_msg_obj.mask = 0xF00;
+	LPC_CCAN_API->config_rxmsgobj(&can_msg_obj);
+
+	can_msg_obj.msgobj = 4;
+	can_msg_obj.mode_id = 0x500;
+	can_msg_obj.mask = 0xF00;
+	LPC_CCAN_API->config_rxmsgobj(&can_msg_obj);
+
+	can_msg_obj.msgobj = 9;
+	can_msg_obj.mode_id = 0x600;
+	can_msg_obj.mask = 0xF00;
 	LPC_CCAN_API->config_rxmsgobj(&can_msg_obj);
 }
 
@@ -375,15 +390,16 @@ void Init_Timers(void) {
 	NVIC_ClearPendingIRQ(TIMER_32_1_IRQn);
 	NVIC_EnableIRQ(TIMER_32_1_IRQn);
 
-	// Chip_TIMER_Enable(LPC_TIMER32_1);
+	Chip_TIMER_Enable(LPC_TIMER32_1);
 }
 
 // ------------------------------------------------
 // Main Program
 
 bool b = true;
+uint8_t counttt = 0;
 
-int main(void) {
+int main2(void) {
 	Init_Core();
 	Init_SM();
 	Init_Board();
@@ -392,8 +408,10 @@ int main(void) {
 	Init_Timers();
 
 
-	brusa_control.output_mVolts = 00;
+	counttt = 0;
+	brusa_control.output_mVolts = 0;
 	brusa_control.output_cAmps = 0;
+	brusa_control.ventilation_request = 1;
 	Chip_TIMER_Enable(LPC_TIMER32_0);
 	brusa_control_count = 0;
 
@@ -402,15 +420,12 @@ int main(void) {
 	uint8_t rec = 0;
 	uint8_t tec = 0;
 	while(1) {
-		// itoa(brusa_control_count, str, 10);
-		// DEBUG_Print(str);
-		// DEBUG_Print("\r\n");
 
-		// if (brusa_control_count > 20 && b) {
-		// 	brusa_control.output_mVolts = 100000;
+		// if (counttt == 20) {
+		// 	counttt++;
+		// 	DEBUG_Println("Starting this bitch");
+		// 	brusa_control.output_mVolts = 73100;
 		// 	brusa_control.output_cAmps = 100;
-		// 	DEBUG_Print("Setting Voltage");
-		// 	b = false;
 		// }
 
 		uint8_t count;
@@ -453,6 +468,43 @@ int main(void) {
 					itoa(tec, str, 10);
 					DEBUG_Println(str);
 					break;
+				case 'f':
+					itoa(pack_state.pack_min_mVolts, str, 10);
+					DEBUG_Print("Pack Min Voltage: ");
+					DEBUG_Print(str);
+					DEBUG_Print("\r\n");
+					itoa(pack_state.pack_max_mVolts, str, 10);
+					DEBUG_Print("Pack Max Voltage: ");
+					DEBUG_Print(str);
+					DEBUG_Print("\r\n");
+					itoa(pack_state.pack_avg_mVolts, str, 10);
+					DEBUG_Print("Pack Avg Voltage: ");
+					DEBUG_Print(str);
+					DEBUG_Print("\r\n");
+					itoa(pack_state.messagesReceived, str, 10);
+					DEBUG_Print("Messages Received: ");
+					DEBUG_Print(str);
+					DEBUG_Print("\r\n");
+
+					break;
+				case 'y':
+					itoa(mbb_ext_1.bal, str, 2);
+					DEBUG_Print("Mod 1: 0b");
+					DEBUG_Println(str);
+					itoa(mbb_ext_2.bal, str, 2);
+					DEBUG_Print("Mod 2: 0b");
+					DEBUG_Println(str);
+					break;
+				case 'z':
+					for (count = 0; count < 12; count++) {
+						itoa(mbb_ext_1.cell_mVolts[count], str, 10);
+						DEBUG_Println(str);
+					}
+
+					for (count = 0; count < 12; count++) {
+						itoa(mbb_ext_2.cell_mVolts[count], str, 10);
+						DEBUG_Println(str);
+					}
 				default:
 					DEBUG_Print("Unknown Command\r\n");
 			}
@@ -477,6 +529,7 @@ int main(void) {
 		} 
 
 		if (brusa_message_send) {
+			counttt++;
 			brusa_message_send = false;
 			Brusa_MakeCTL(&brusa_control, &mcp_msg_obj);
 			MCP2515_LoadBuffer(0, &mcp_msg_obj);
@@ -497,10 +550,66 @@ int main(void) {
 			}
 		}
 
+		if (!RingBuffer_IsEmpty(&rx_buffer)) {
+			CCAN_MSG_OBJ_T temp_msg;
+			RingBuffer_Pop(&rx_buffer, &temp_msg);
+			uint8_t mod_id = temp_msg.mode_id & 0xFF;
+			if ((temp_msg.mode_id & MBB_STD_MASK) == MBB_STD) {
+
+				MBB_DecodeStd(&mbb_std, &temp_msg);
+
+				if (newMessage) {
+					pack_state.pack_min_mVolts = mbb_std.mod_min_mVolts;
+					pack_state.pack_max_mVolts = mbb_std.mod_max_mVolts;
+					pack_state.pack_node_min = mod_id;
+					pack_state.pack_node_max = mod_id;
+					newMessage = false;
+				}
+				if (mbb_std.mod_min_mVolts < pack_state.pack_min_mVolts) {
+					pack_state.pack_min_mVolts = mbb_std.mod_min_mVolts;
+					pack_state.pack_node_min = mod_id;
+				}
+
+				if (mbb_std.mod_max_mVolts > pack_state.pack_max_mVolts) {
+					pack_state.pack_max_mVolts = mbb_std.mod_max_mVolts;
+					pack_state.pack_node_max = mod_id;
+				}
+
+				itoa(mbb_std.balance_c_count, int_str, 16);
+				// DEBUG_Print("Active Balance Circuits: 0x");
+				// DEBUG_Println(int_str);
+
+				pack_state.messagesReceived++;
+				// pack_state.pack_avg_mVolts = (pack_state.pack_avg_mVolts * (pack_state.messagesReceived - 1) + mbb_std.mod_avg_mVolts) / pack_state.messagesReceived;
+				pack_state.pack_avg_mVolts = (mbb_std.mod_avg_mVolts);
+			} else if ((temp_msg.mode_id & MBB_EXT_MASK) == MBB_EXT1 ||
+						(temp_msg.mode_id & MBB_EXT_MASK) == MBB_EXT2 ||
+						(temp_msg.mode_id & MBB_EXT_MASK) == MBB_EXT3) {
+				
+
+				if (mbb_ext_1.id == 0xFF || MBB_GetModID(temp_msg.mode_id) == mbb_ext_1.id) {
+					MBB_DecodeExt(&mbb_ext_1, &temp_msg);
+					// DEBUG_Println("EXT1");
+				} else if (mbb_ext_2.id == 0xFF || MBB_GetModID(temp_msg.mode_id) == mbb_ext_2.id) {
+					MBB_DecodeExt(&mbb_ext_2, &temp_msg);
+					// DEBUG_Println("EXT2");
+				} else {
+					DEBUG_Println("Got wierd battery id");
+				}
+			} else if ((temp_msg.mode_id & 0xF00) == 0x600) {
+				uint32_t voltage_mVolts = (temp_msg.data[6] << 8) | temp_msg.data[7];
+				voltage_mVolts = (voltage_mVolts + 6000);
+				itoa(voltage_mVolts, str, 10);
+				DEBUG_Print("Pack Voltage: ");
+				DEBUG_Println(str);
+			} else {
+				DEBUG_Println("Unknown On-Chip MSG");
+			}
+		}
 	}
 }
 
-int main2(void)
+int main(void)
 {
 
 	Init_Core();
@@ -520,26 +629,7 @@ int main2(void)
 		uint8_t count;
 		if ((count = Chip_UART_Read(LPC_USART, Rx_Buf, UART_RX_BUF_SIZE)) != 0) {
 			switch (Rx_Buf[0]) {
-				case 'a':
-					itoa(pack_state.pack_min_mVolts, str, 16);
-					DEBUG_Print("Pack Min Voltage: 0x");
-					DEBUG_Print(str);
-					DEBUG_Print("\r\n");
-					itoa(pack_state.pack_max_mVolts, str, 16);
-					DEBUG_Print("Pack Max Voltage: 0x");
-					DEBUG_Print(str);
-					DEBUG_Print("\r\n");
-					itoa(pack_state.pack_avg_mVolts, str, 16);
-					DEBUG_Print("Pack Avg Voltage: 0x");
-					DEBUG_Print(str);
-					DEBUG_Print("\r\n");
-					itoa(pack_state.messagesReceived, str, 10);
-					DEBUG_Print("Messages Received: ");
-					DEBUG_Print(str);
-					DEBUG_Print("\r\n");
-
-					break;
-				case 'b':				
+				case 'a':				
 					DEBUG_Print("Actual Mains Voltage: ");
 					itoa(brusa_actual_1.mains_mVolts, str, 10);
 					DEBUG_Print(str);
@@ -555,7 +645,7 @@ int main2(void)
 					DEBUG_Print(str);
 					DEBUG_Print("\r\n");
 					break;
-				case 'c':
+				case 'b':
 					DEBUG_Print("Actual Out Voltage: ");
 					itoa(brusa_actual_1.output_mVolts, str, 10);
 					DEBUG_Println(str);
@@ -564,6 +654,43 @@ int main2(void)
 					itoa(brusa_actual_1.output_cAmps, str, 10);
 					DEBUG_Println(str);
 					break;
+				case 'f':
+					itoa(pack_state.pack_min_mVolts, str, 10);
+					DEBUG_Print("Pack Min Voltage: ");
+					DEBUG_Print(str);
+					DEBUG_Print("\r\n");
+					itoa(pack_state.pack_max_mVolts, str, 10);
+					DEBUG_Print("Pack Max Voltage: ");
+					DEBUG_Print(str);
+					DEBUG_Print("\r\n");
+					itoa(pack_state.pack_avg_mVolts, str, 10);
+					DEBUG_Print("Pack Avg Voltage: ");
+					DEBUG_Print(str);
+					DEBUG_Print("\r\n");
+					itoa(pack_state.messagesReceived, str, 10);
+					DEBUG_Print("Messages Received: ");
+					DEBUG_Print(str);
+					DEBUG_Print("\r\n");
+
+					break;
+				case 'y':
+					itoa(mbb_ext_1.bal, str, 2);
+					DEBUG_Print("Mod 1: 0b");
+					DEBUG_Println(str);
+					itoa(mbb_ext_2.bal, str, 2);
+					DEBUG_Print("Mod 2: 0b");
+					DEBUG_Println(str);
+					break;
+				case 'z':
+					for (count = 0; count < 12; count++) {
+						itoa(mbb_ext_1.cell_mVolts[count], str, 10);
+						DEBUG_Println(str);
+					}
+
+					for (count = 0; count < 12; count++) {
+						itoa(mbb_ext_2.cell_mVolts[count], str, 10);
+						DEBUG_Println(str);
+					}
 				default:
 					DEBUG_Print("Unknown Command\r\n");
 			}
@@ -600,8 +727,14 @@ int main2(void)
 		}
 
 		if (out_state.brusa_mVolts != 0 || out_state.brusa_cAmps != 0) {
-			brusa_control.output_mVolts = out_state.brusa_mVolts;
-			brusa_control.output_cAmps = out_state.brusa_cAmps;
+			// brusa_control.output_mVolts = out_state.brusa_mVolts;
+			// brusa_control.output_cAmps = out_state.brusa_cAmps;
+			itoa(out_state.brusa_mVolts, str, 10);
+			DEBUG_Print("Out V: ");
+			DEBUG_Println(str);
+			itoa(out_state.brusa_cAmps, str, 10);
+			DEBUG_Print("Out C: ");
+			DEBUG_Println(str);
 			Chip_TIMER_Enable(LPC_TIMER32_0);
 		} else {
 			brusa_control.output_mVolts = 0;
@@ -610,6 +743,9 @@ int main2(void)
 		}
 
 		mbb_cmd.balance_target_mVolts = out_state.balance_mVolts;
+		itoa(mbb_cmd.balance_target_mVolts, str, 10);
+		DEBUG_Print("Balancing to: ");
+		DEBUG_Println(str);
 
 		// Retrive any available Brusa Messages for shits
 		int8_t tmp = MCP2515_GetFullReceiveBuffer();
@@ -643,6 +779,62 @@ int main2(void)
 			case DRAINING:
 				Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, Hertz2Ticks(BCM_POLL_DRAINING_FREQ));
 				break;
+		}
+
+		if (!RingBuffer_IsEmpty(&rx_buffer)) {
+			CCAN_MSG_OBJ_T temp_msg;
+			RingBuffer_Pop(&rx_buffer, &temp_msg);
+			uint8_t mod_id = temp_msg.mode_id & 0xFF;
+			if ((temp_msg.mode_id & MBB_STD_MASK) == MBB_STD) {
+
+				MBB_DecodeStd(&mbb_std, &temp_msg);
+
+				if (newMessage) {
+					pack_state.pack_min_mVolts = mbb_std.mod_min_mVolts;
+					pack_state.pack_max_mVolts = mbb_std.mod_max_mVolts;
+					pack_state.pack_node_min = mod_id;
+					pack_state.pack_node_max = mod_id;
+					newMessage = false;
+				}
+				if (mbb_std.mod_min_mVolts < pack_state.pack_min_mVolts) {
+					pack_state.pack_min_mVolts = mbb_std.mod_min_mVolts;
+					pack_state.pack_node_min = mod_id;
+				}
+
+				if (mbb_std.mod_max_mVolts > pack_state.pack_max_mVolts) {
+					pack_state.pack_max_mVolts = mbb_std.mod_max_mVolts;
+					pack_state.pack_node_max = mod_id;
+				}
+
+				// itoa(mbb_std.balance_c_count, int_str, 16);
+				// // DEBUG_Print("Active Balance Circuits: 0x");
+				// // DEBUG_Println(int_str);
+
+				pack_state.messagesReceived++;
+				pack_state.pack_avg_mVolts = (mbb_std.mod_avg_mVolts);
+			} else if ((temp_msg.mode_id & MBB_EXT_MASK) == MBB_EXT1 ||
+						(temp_msg.mode_id & MBB_EXT_MASK) == MBB_EXT2 ||
+						(temp_msg.mode_id & MBB_EXT_MASK) == MBB_EXT3) {
+				
+
+				if (mbb_ext_1.id == 0xFF || MBB_GetModID(temp_msg.mode_id) == mbb_ext_1.id) {
+					MBB_DecodeExt(&mbb_ext_1, &temp_msg);
+					// DEBUG_Println("EXT1");
+				} else if (mbb_ext_2.id == 0xFF || MBB_GetModID(temp_msg.mode_id) == mbb_ext_2.id) {
+					MBB_DecodeExt(&mbb_ext_2, &temp_msg);
+					// DEBUG_Println("EXT2");
+				} else {
+					DEBUG_Println("Got wierd battery id");
+				}
+			} else if ((temp_msg.mode_id & 0xF00) == 0x600) {
+				uint32_t voltage_mVolts = (temp_msg.data[6] << 8) | temp_msg.data[7];
+				voltage_mVolts = (voltage_mVolts + 6000);
+				itoa(voltage_mVolts, str, 10);
+				DEBUG_Print("Pack Voltage: ");
+				DEBUG_Println(str);
+			} else {
+				DEBUG_Println("Unknown On-Chip MSG");
+			}
 		}
 
 	}
