@@ -140,6 +140,12 @@ BAUDRATE = 115200
 CLOCK_OSC = 12000
 
 #=============================================================================#
+# Lint Configuration
+#=============================================================================#
+
+MAX_LINE_SIZE = 140
+
+#=============================================================================#
 # set the VPATH according to SRCS_DIRS
 #=============================================================================#
 
@@ -183,6 +189,9 @@ AS_FLAGS = -g -ggdb3 -Wa,-amhls=$(OUT_DIR_F)$(notdir $(<:.$(AS_EXT)=.lst))
 
 # flags for linker
 LD_FLAGS = -T$(LD_SCRIPT) -g -Wl,-Map=$(OUT_DIR_F)$(PROJECT).map,--cref,--no-warn-mismatch
+
+# flags for lint
+LINT_FLAGS = -rc LONG_LINE=$(MAX_LINE_SIZE)
 
 # process option for removing unused code
 ifeq ($(REMOVE_UNUSED), 1)
@@ -277,6 +286,7 @@ test : make_test_output_dir $(TEST_TARGET)
 
 # make object files dependent on Makefile
 $(OBJS_F) : Makefile
+$(TEST_OBJS) : Makefile
 # make .elf file dependent on linker script
 $(ELF) : $(LD_SCRIPT)
 
@@ -391,7 +401,7 @@ make_test_output_dir :
 #-----------------------------------------------------------------------------#
 
 lint: $(C_SRCS)
-	oclint $^ -- $(C_FLAGS_F_CROSS) -I/usr/local/Cellar/gcc-arm-none-eabi/20140805/arm-none-eabi/include/
+	oclint $^ $(LINT_FLAGS) -- $(C_FLAGS_F_CROSS) -I/usr/local/Cellar/gcc-arm-none-eabi/20140805/arm-none-eabi/include/
 
 
 #-----------------------------------------------------------------------------#
