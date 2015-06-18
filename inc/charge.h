@@ -20,7 +20,7 @@ typedef struct {
 	uint32_t max_cell_mVolts; 		// Maximum cell voltage
 	uint32_t cc_cell_mVolts;		// Voltage over cell in CC Mode
 	uint16_t cell_capacity_cAmpHours;
-	uint8_t cell_mC_rating;
+	uint16_t cell_mC_rating;
 } CHARGING_CONFIG_T;
 
 void Charge_Config(CHARGING_CONFIG_T *config);

@@ -32,9 +32,10 @@ typedef struct {
 } PACK_STATE_T;
 
 typedef struct {
+	bool balance;
 	uint16_t balance_mVolts;
 	uint32_t brusa_mVolts;
-	uint16_t brusa_cAmps;
+	uint32_t brusa_cAmps;
 	bool close_contactors;
 } OUTPUT_STATE_T;
 

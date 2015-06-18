@@ -6,8 +6,8 @@ static uint64_t lastTimeAbove1A = 0;
 static uint32_t max_pack_mVolts;
 static uint32_t max_cell_mVolts;
 static uint32_t cc_pack_mVolts;
-static uint16_t pack_capacity_cAmpHours;
-static uint16_t max_charge_cAmps;
+static uint32_t pack_capacity_cAmpHours;
+static uint32_t max_charge_cAmps;
 static bool balancing;
 
 void Charge_Config(CHARGING_CONFIG_T *config) {
@@ -15,7 +15,7 @@ void Charge_Config(CHARGING_CONFIG_T *config) {
 	max_pack_mVolts = max_cell_mVolts * config->pack_s;
 	cc_pack_mVolts = config->cc_cell_mVolts * config->pack_s;
 	pack_capacity_cAmpHours = config->cell_capacity_cAmpHours * config->pack_p;
-	max_charge_cAmps = pack_capacity_cAmpHours * config->cell_mC_rating / 1000;
+	max_charge_cAmps = pack_capacity_cAmpHours * (uint32_t)(config->cell_mC_rating) / 1000;
 	// Store all values into EEPROM
 }
 
@@ -42,6 +42,7 @@ ERROR_T Charge_Step(PACK_STATE_T *pack_state, MODE_REQUEST_T req_mode, OUTPUT_ST
 handler:
 	switch(mode) {
 		case CHRG_OFF:
+			out_state->balance = false;
 			out_state->balance_mVolts = BCM_BALANCE_OFF;
 			out_state->brusa_mVolts = 0;
 			out_state->brusa_cAmps = 0;
@@ -59,6 +60,7 @@ handler:
 				mode = (pack_state->pack_max_mVolts < max_cell_mVolts) ? CHRG_CC : CHRG_CV;
 				goto handler;
 			}
+			out_state->balance = false;
 			out_state->balance_mVolts = BCM_BALANCE_OFF;
 			out_state->brusa_mVolts = 0;
 			out_state->brusa_cAmps = 0;
@@ -86,8 +88,10 @@ handler:
 			}
 
 			if (balancing) {
+				out_state->balance = true;
 				out_state->balance_mVolts = pack_state->pack_min_mVolts;
 			} else {
+				out_state->balance = false;
 				out_state->balance_mVolts = BCM_BALANCE_OFF;
 			}
 			break;
@@ -108,6 +112,7 @@ handler:
 						// Done Charging
 						out_state->brusa_mVolts = 0;
 						out_state->brusa_cAmps = 0;
+						out_state->balance = false;
 						out_state->balance_mVolts = BCM_BALANCE_OFF;
 						mode = CHRG_DONE;
 						if (balancing) {
@@ -129,8 +134,10 @@ handler:
 			}
 
 			if (balancing) {
+				out_state->balance = true;
 				out_state->balance_mVolts = pack_state->pack_min_mVolts;
 			} else {
+				out_state->balance = false;
 				out_state->balance_mVolts = BCM_BALANCE_OFF;
 			}
 			break;
