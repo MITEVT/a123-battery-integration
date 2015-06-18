@@ -79,7 +79,9 @@ handler:
 
 			if (!balancing && BCM_BAL_ENABLE(pack_state->pack_max_mVolts, pack_state->pack_min_mVolts)) {
 				balancing = true;
-			} else if (balancing && BCM_BAL_DISABLE(pack_state->pack_max_mVolts, pack_state->pack_min_mVolts)) {
+			} else if (balancing && 
+						BCM_BAL_DISABLE(pack_state->pack_max_mVolts, 
+										pack_state->pack_min_mVolts)) {
 				balancing = false;
 			}
 
@@ -120,7 +122,9 @@ handler:
 
 			if (!balancing && BCM_BAL_ENABLE(pack_state->pack_max_mVolts, pack_state->pack_min_mVolts)) {
 				balancing = true;
-			} else if (balancing && BCM_BAL_DISABLE(pack_state->pack_max_mVolts, pack_state->pack_min_mVolts)) {
+			} else if (balancing && 
+							BCM_BAL_DISABLE(pack_state->pack_max_mVolts, 
+											pack_state->pack_min_mVolts)) {
 				balancing = false;
 			}
 

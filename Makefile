@@ -30,6 +30,7 @@ CXX_TEST = g++
 CC_TEST = gcc
 AS_TEST = gcc -x assembler-with-cpp
 SIZE_TEST = size
+LINT = oclint
 
 #=============================================================================#
 # project configuration
@@ -288,6 +289,8 @@ $(TEST_TARGET) : $(TEST_OBJS)
 	$(CXX) $(LD_FLAGS_F_TEST) $(TEST_OBJS) $(LIBS) -o $@
 	@echo ' '
 
+
+
 #-----------------------------------------------------------------------------#
 # linking - objects -> elf
 #-----------------------------------------------------------------------------#
@@ -384,6 +387,14 @@ make_test_output_dir :
 	$(shell mkdir $(OUT_DIR_TEST_F) 2>/dev/null)
 
 #-----------------------------------------------------------------------------#
+# Perform static analysis with lint
+#-----------------------------------------------------------------------------#
+
+lint: $(C_SRCS)
+	oclint $^ -- $(C_FLAGS_F_CROSS) -I/usr/local/Cellar/gcc-arm-none-eabi/20140805/arm-none-eabi/include/
+
+
+#-----------------------------------------------------------------------------#
 # Write to flash of chip
 #-----------------------------------------------------------------------------#
 
@@ -395,7 +406,7 @@ writeflash: all
 # Opening Picocom
 #-----------------------------------------------------------------------------#
 
-com:
+com: $(C_OBJS)
 	@echo "Opening" $(COMPORT)
 	@picocom -b 57600 $(COMPORT)
 

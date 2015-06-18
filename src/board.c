@@ -70,7 +70,10 @@ void Board_SPI_Init(uint32_t baudRateHz) {
 	Chip_SSP_Enable(LPC_SSP0);
 }
 
-void Board_CCAN_Init(uint32_t baudRateHz, void (*CAN_rx)(uint8_t), void (*CAN_tx)(uint8_t), void (*CAN_error)(uint32_t)) {
+void Board_CCAN_Init(uint32_t baudRateHz, 
+					void (*CAN_rx)(uint8_t), 
+					void (*CAN_tx)(uint8_t), 
+					void (*CAN_error)(uint32_t)) {
 	uint32_t CanApiClkInitTable[2];
 	CCAN_CALLBACKS_T callbacks = {
 		CAN_rx,

@@ -52,7 +52,6 @@ static NLG5_TEMP_T brusa_temp;
 static volatile uint32_t brusa_control_count = 0;
 static volatile bool brusa_message_send = false;
 
-static volatile bool brusa_messages_received[5];
 
 // On-Chip CCAN
 static CCAN_MSG_OBJ_T can_msg_obj;
@@ -580,7 +579,6 @@ int main2(void) {
 				// DEBUG_Println(int_str);
 
 				pack_state.messagesReceived++;
-				// pack_state.pack_avg_mVolts = (pack_state.pack_avg_mVolts * (pack_state.messagesReceived - 1) + mbb_std.mod_avg_mVolts) / pack_state.messagesReceived;
 				pack_state.pack_avg_mVolts = (mbb_std.mod_avg_mVolts);
 			} else if ((temp_msg.mode_id & MBB_EXT_MASK) == MBB_EXT1 ||
 						(temp_msg.mode_id & MBB_EXT_MASK) == MBB_EXT2 ||
