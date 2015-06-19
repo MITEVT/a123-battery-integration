@@ -1,4 +1,4 @@
-Cmp-Mod V01 Created by Cvpcb (2015-06-05 BZR 5717)-product   date = Saturday, June 13, 2015 'PMt' 09:25:45 PM
+Cmp-Mod V01 Created by Cvpcb (2015-06-05 BZR 5717)-product   date = Friday, June 19, 2015 'AMt' 12:01:53 AM
 
 BeginCmp
 TimeStamp = /553C00A1/557A5A7B;
@@ -459,7 +459,7 @@ BeginCmp
 TimeStamp = /553C01F1/55453AF6;
 Reference = U701;
 ValeurCmp = LPC11C14;
-IdModule  = ;
+IdModule  = Housings_QFP:TQFP-48_7x7mm_Pitch0.5mm;
 EndCmp
 
 BeginCmp
