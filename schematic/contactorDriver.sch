@@ -1,0 +1,205 @@
+EESchema Schematic File Version 2
+LIBS:power
+LIBS:device
+LIBS:transistors
+LIBS:conn
+LIBS:linear
+LIBS:regul
+LIBS:74xx
+LIBS:cmos4000
+LIBS:adc-dac
+LIBS:memory
+LIBS:xilinx
+LIBS:microcontrollers
+LIBS:dsp
+LIBS:microchip
+LIBS:analog_switches
+LIBS:motorola
+LIBS:texas
+LIBS:intel
+LIBS:audio
+LIBS:interface
+LIBS:digital-audio
+LIBS:philips
+LIBS:display
+LIBS:cypress
+LIBS:siliconi
+LIBS:opto
+LIBS:atmel
+LIBS:contrib
+LIBS:valves
+LIBS:MITEVT_interface
+LIBS:MITEVT_mcontrollers
+LIBS:MITEVT_OPTO
+LIBS:MITEVT_REG
+LIBS:MITEVT_ANALOG
+LIBS:MITEVT_power
+LIBS:BCM-cache
+EELAYER 25 0
+EELAYER END
+$Descr A4 11693 8268
+encoding utf-8
+Sheet 5 7
+Title ""
+Date ""
+Rev ""
+Comp ""
+Comment1 ""
+Comment2 ""
+Comment3 ""
+Comment4 ""
+$EndDescr
+Text HLabel 8000 3900 0    60   Input ~ 0
+CON+
+Text HLabel 5500 3900 0    60   Input ~ 0
+CON-
+Text HLabel 3000 3900 0    60   Input ~ 0
+CONPRE
+Text HLabel 8950 3450 2    60   Output ~ 0
+CON+_HIGH
+Text HLabel 8950 3550 2    60   Output ~ 0
+CON+_LOW
+Text HLabel 6450 3450 2    60   Output ~ 0
+CON-_HIGH
+Text HLabel 6450 3550 2    60   Output ~ 0
+CON-_LOW
+Text HLabel 3950 3450 2    60   Output ~ 0
+CONPRE_HIGH
+Text HLabel 3950 3550 2    60   Output ~ 0
+CONPRE_LOW
+$Comp
+L Q_NMOS_DGS Q501
+U 1 1 5573875A
+P 3600 3900
+F 0 "Q501" H 3900 3950 50  0000 R CNN
+F 1 "Q_NMOS_DGS" H 4250 3850 50  0000 R CNN
+F 2 "" H 3800 4000 29  0001 C CNN
+F 3 "" H 3600 3900 60  0000 C CNN
+	1    3600 3900
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	3000 3900 3400 3900
+Wire Wire Line
+	3700 4100 3700 4200
+$Comp
+L GND #PWR027
+U 1 1 55738792
+P 3700 4200
+F 0 "#PWR027" H 3700 3950 50  0001 C CNN
+F 1 "GND" H 3700 4050 50  0000 C CNN
+F 2 "" H 3700 4200 60  0000 C CNN
+F 3 "" H 3700 4200 60  0000 C CNN
+	1    3700 4200
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	3700 3700 3700 3550
+Wire Wire Line
+	3700 3550 3950 3550
+Wire Wire Line
+	3950 3450 3700 3450
+Wire Wire Line
+	3700 3450 3700 3300
+$Comp
+L Q_NMOS_DGS Q502
+U 1 1 55738845
+P 6100 3900
+F 0 "Q502" H 6400 3950 50  0000 R CNN
+F 1 "Q_NMOS_DGS" H 6750 3850 50  0000 R CNN
+F 2 "" H 6300 4000 29  0001 C CNN
+F 3 "" H 6100 3900 60  0000 C CNN
+	1    6100 3900
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	5500 3900 5900 3900
+Wire Wire Line
+	6200 4100 6200 4200
+$Comp
+L GND #PWR028
+U 1 1 5573884D
+P 6200 4200
+F 0 "#PWR028" H 6200 3950 50  0001 C CNN
+F 1 "GND" H 6200 4050 50  0000 C CNN
+F 2 "" H 6200 4200 60  0000 C CNN
+F 3 "" H 6200 4200 60  0000 C CNN
+	1    6200 4200
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	6200 3700 6200 3550
+Wire Wire Line
+	6200 3550 6450 3550
+Wire Wire Line
+	6450 3450 6200 3450
+Wire Wire Line
+	6200 3450 6200 3300
+$Comp
+L Q_NMOS_DGS Q503
+U 1 1 55738888
+P 8600 3900
+F 0 "Q503" H 8900 3950 50  0000 R CNN
+F 1 "Q_NMOS_DGS" H 9250 3850 50  0000 R CNN
+F 2 "" H 8800 4000 29  0001 C CNN
+F 3 "" H 8600 3900 60  0000 C CNN
+	1    8600 3900
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	8000 3900 8400 3900
+Wire Wire Line
+	8700 4100 8700 4200
+$Comp
+L GND #PWR029
+U 1 1 55738890
+P 8700 4200
+F 0 "#PWR029" H 8700 3950 50  0001 C CNN
+F 1 "GND" H 8700 4050 50  0000 C CNN
+F 2 "" H 8700 4200 60  0000 C CNN
+F 3 "" H 8700 4200 60  0000 C CNN
+	1    8700 4200
+	1    0    0    -1  
+$EndComp
+Wire Wire Line
+	8700 3700 8700 3550
+Wire Wire Line
+	8700 3550 8950 3550
+Wire Wire Line
+	8950 3450 8700 3450
+Wire Wire Line
+	8700 3450 8700 3300
+$Comp
+L +15V #PWR030
+U 1 1 557A45E1
+P 3700 3300
+F 0 "#PWR030" H 3700 3150 50  0001 C CNN
+F 1 "+15V" H 3700 3440 50  0000 C CNN
+F 2 "" H 3700 3300 60  0000 C CNN
+F 3 "" H 3700 3300 60  0000 C CNN
+	1    3700 3300
+	1    0    0    -1  
+$EndComp
+$Comp
+L +15V #PWR031
+U 1 1 557A45F9
+P 6200 3300
+F 0 "#PWR031" H 6200 3150 50  0001 C CNN
+F 1 "+15V" H 6200 3440 50  0000 C CNN
+F 2 "" H 6200 3300 60  0000 C CNN
+F 3 "" H 6200 3300 60  0000 C CNN
+	1    6200 3300
+	1    0    0    -1  
+$EndComp
+$Comp
+L +15V #PWR032
+U 1 1 557A460A
+P 8700 3300
+F 0 "#PWR032" H 8700 3150 50  0001 C CNN
+F 1 "+15V" H 8700 3440 50  0000 C CNN
+F 2 "" H 8700 3300 60  0000 C CNN
+F 3 "" H 8700 3300 60  0000 C CNN
+	1    8700 3300
+	1    0    0    -1  
+$EndComp
+$EndSCHEMATC
