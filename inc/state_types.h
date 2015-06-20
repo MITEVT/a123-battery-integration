@@ -29,11 +29,14 @@ typedef struct {
 	uint16_t pack_cAmps_in;
 	bool contactors_closed;
 	volatile uint64_t msTicks;
+	volatile uint64_t brusa_error_message;
 } PACK_STATE_T;
 
 typedef struct {
 	bool balance;
 	uint16_t balance_mVolts;
+	bool brusa_output;
+	bool brusa_clear_latch;
 	uint32_t brusa_mVolts;
 	uint32_t brusa_cAmps;
 	bool close_contactors;

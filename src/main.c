@@ -44,6 +44,7 @@ static char str[100]; // For use with String Manipulation
 static char int_str[100];
 
 static CCAN_MSG_OBJ_T mcp_msg_obj;
+static uint64_t brusa_error_message;
 static NLG5_CTL_T brusa_control;
 static NLG5_STATUS_T brusa_status;
 static NLG5_ACT_I_T brusa_actual_1;
@@ -52,7 +53,7 @@ static NLG5_TEMP_T brusa_temp;
 static volatile uint32_t brusa_control_count = 0;
 static volatile bool brusa_message_send = false;
 
-
+static MODE_T mode;
 // On-Chip CCAN
 static CCAN_MSG_OBJ_T can_msg_obj;
 static RINGBUFF_T rx_buffer;
@@ -101,6 +102,7 @@ void _error(ERROR_T errorNo, bool flashLED, bool hang) {
 	Board_LED_On();
 }
 
+// [TODO] Move to Brusa Library
 void decodeBrusa(CCAN_MSG_OBJ_T *msg) {
 	if (msg->mode_id == NLG5_STATUS) {
 		Brusa_DecodeStatus(&brusa_status, msg);
@@ -112,13 +114,13 @@ void decodeBrusa(CCAN_MSG_OBJ_T *msg) {
 		// DEBUG_Println(">3");
 	} else if (msg->mode_id == NLG5_ACT_I) {
 		Brusa_DecodeActI(&brusa_actual_1, msg);
-		DEBUG_Print("Actual Out Voltage: ");
-		itoa(brusa_actual_1.output_mVolts, str, 10);
-		DEBUG_Println(str);
+		// DEBUG_Print("Actual Out Voltage: ");
+		// itoa(brusa_actual_1.output_mVolts, str, 10);
+		// DEBUG_Println(str);
 
-		DEBUG_Print("Actual Out Current: ");
-		itoa(brusa_actual_1.output_cAmps, str, 10);
-		DEBUG_Println(str);
+		// DEBUG_Print("Actual Out Current: ");
+		// itoa(brusa_actual_1.output_cAmps, str, 10);
+		// DEBUG_Println(str);
 		// brusa_messages_received[1] = true;
 		// DEBUG_Println(">1");
 	} else if (msg->mode_id == NLG5_ACT_II) {
@@ -126,6 +128,12 @@ void decodeBrusa(CCAN_MSG_OBJ_T *msg) {
 		// brusa_messages_received[2] = true;
 		// DEBUG_Println(">2");
 	} else if (msg->mode_id == NLG5_ERR) {
+		brusa_error_message = 0;
+		msg->data[4] &= 0xF0;
+		int i;
+		for (i = 0; i < msg->dlc; i++) {
+			brusa_error_message |= msg->data[i] << (8*i);
+		}
 		// brusa_messages_received[4] = true;
 		// DEBUG_Println(">4");
 	} else {
@@ -237,7 +245,7 @@ void Init_SM(void) {
 	charge_config.max_cell_mVolts = 3600;
 	charge_config.cc_cell_mVolts = 3700;
 	charge_config.cell_capacity_cAmpHours = 2000; 	// 20 Ahr
-	charge_config.cell_mC_rating = 16; 				// .016 C
+	charge_config.cell_mC_rating = 133; 			// .133 C
 
 	DRAINING_CONFIG_T drain_config;
 	drain_config.min_cell_mVolts = 2500; //Specs say 2000mV but lets play it safe for now
@@ -268,7 +276,7 @@ void Init_Board(void) {
 void Init_Globals(void) {
 	brusa_control.enable = 1;
 	brusa_control.clear_error = 0;
-	brusa_control.ventilation_request = 0;
+	brusa_control.ventilation_request = 1;
 	brusa_control.max_mains_cAmps = BRUSA_MAX_MAINS_CAMPS;
 	brusa_control.output_mVolts = 0;
 	brusa_control.output_cAmps = 0;
@@ -284,12 +292,16 @@ void Init_Globals(void) {
 	out_state.brusa_mVolts = 0;
 	out_state.brusa_cAmps = 0;
 	out_state.close_contactors = false;
+	out_state.brusa_output = false;
+	out_state.brusa_clear_latch = false;
 
 	mbb_ext_1.id = 0xFF;
 	mbb_ext_2.id = 0xFF;
 
 	mbb_ext_1.bal = 0;
 	mbb_ext_2.bal = 0;
+
+	mode = IDLE;
 }
 
 void Init_CAN(void) {
@@ -319,7 +331,7 @@ void Init_CAN(void) {
 	MCP2515_BitModify(RXF2SIDH, 0xFF, 0xC2);
 	MCP2515_BitModify(RXF2SIDL, 0xE0, 0x20); // Message 611
 	MCP2515_BitModify(RXF3SIDH, 0xFF, 0xC2);
-	MCP2515_BitModify(RXF3SIDL, 0xE0, 0x20); // Message 611
+	MCP2515_BitModify(RXF3SIDL, 0xE0, 0x60); // Message 613
 	MCP2515_BitModify(RXF4SIDH, 0xFF, 0xC2);
 	MCP2515_BitModify(RXF4SIDL, 0xE0, 0x20); // Message 611
 	MCP2515_BitModify(RXF5SIDH, 0xFF, 0xC2);
@@ -367,7 +379,7 @@ void Init_Timers(void) {
 	Chip_TIMER_Init(LPC_TIMER32_0);
 	Chip_TIMER_Reset(LPC_TIMER32_0);
 	Chip_TIMER_MatchEnableInt(LPC_TIMER32_0, 0);
-	Chip_TIMER_SetMatch(LPC_TIMER32_0, 0, Hertz2Ticks(5));
+	Chip_TIMER_SetMatch(LPC_TIMER32_0, 0, Hertz2Ticks(10));
 	Chip_TIMER_ResetOnMatchEnable(LPC_TIMER32_0, 0);
 
 	// Chip_TIMER_Enable(LPC_TIMER32_0);
@@ -606,9 +618,9 @@ int main2(void) {
 	}
 }
 
-#define MESSAGE_DELAY 1000
-static uint64_t lastDebugMessage = 0;
-static uint32_t messageCount = 0;
+#define TIMED_MESSAGE_DELAY 1000
+static uint64_t last_debug_message = 0;
+static uint32_t message_count = 0;
 
 int main(void)
 {
@@ -641,8 +653,13 @@ int main(void)
 					DEBUG_Print(str);
 					DEBUG_Print("\r\n");
 
+					DEBUG_Print("Temp: ");
+					itoa((brusa_temp.power_temp / 10) - 40 , str, 10);
+					DEBUG_Print(str);
+					DEBUG_Print("\r\n");
+
 					DEBUG_Print("Temp: 0x");
-					itoa(brusa_temp.power_temp, str, 16);
+					itoa(brusa_temp.power_temp , str, 16);
 					DEBUG_Print(str);
 					DEBUG_Print("\r\n");
 					break;
@@ -682,6 +699,15 @@ int main(void)
 					DEBUG_Print("Mod 2: 0b");
 					DEBUG_Println(str);
 					break;
+				case 'e': 
+					itoa(brusa_error_message,str, 2);
+					DEBUG_Println(str);
+					break;
+				case 'm':
+					DEBUG_Print("Charge Mode: ");
+					itoa(Charge_GetMode(), str, 10);
+					DEBUG_Println(str);
+					break;
 				case 'z': // Print out Cell Voltages (Slow)
 					for (count = 0; count < 12; count++) {
 						itoa(mbb_ext_1.cell_mVolts[count], str, 10);
@@ -711,6 +737,7 @@ int main(void)
 		// Update pack_state
 		pack_state.contactors_closed = Board_Contactors_Closed();
 		pack_state.msTicks = msTicks;
+		pack_state.brusa_error_message = brusa_error_message;
 
 		//-----------------------------
 		// SSM Step
@@ -727,7 +754,8 @@ int main(void)
 			Board_Close_Contactors(false);
 		}
 
-		if (out_state.brusa_mVolts != 0 || out_state.brusa_cAmps != 0) {
+		if (out_state.brusa_output) {
+			brusa_control.clear_error = out_state.brusa_clear_latch;
 			brusa_control.output_mVolts = out_state.brusa_mVolts;
 			brusa_control.output_cAmps = out_state.brusa_cAmps;
 			Chip_TIMER_Enable(LPC_TIMER32_0);
@@ -765,18 +793,25 @@ int main(void)
 		//-----------------------------
 		// Set A123 Poll frequency
 		// [TODO] Make this happen only on change, not every cycle
-		switch (SSM_GetMode()) {
-			case IDLE:
-				Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, Hertz2Ticks(BCM_POLL_IDLE_FREQ));
-				break;
-			case CHARGING:
-				Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, Hertz2Ticks(BCM_POLL_CHARGING_FREQ));
-				break;
-			case DRAINING:
-				Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, Hertz2Ticks(BCM_POLL_DRAINING_FREQ));
-				break;
-		}
+		if (SSM_GetMode() != mode) {
+			mode = SSM_GetMode();
+			switch (SSM_GetMode()) {
+				case IDLE:
+					Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, Hertz2Ticks(BCM_POLL_IDLE_FREQ));
+					Chip_TIMER_Reset(LPC_TIMER32_1);
+					break;
+				case CHARGING:
+					Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, Hertz2Ticks(BCM_POLL_CHARGING_FREQ));
+					Chip_TIMER_Reset(LPC_TIMER32_1);
+					break;
+				case DRAINING:
+					Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, Hertz2Ticks(BCM_POLL_DRAINING_FREQ));
+					Chip_TIMER_Reset(LPC_TIMER32_1);
+					break;
+			}
 
+		}
+		
 		//-----------------------------
 		// Check for and decode A123 Messages
 		if (!RingBuffer_IsEmpty(&rx_buffer)) {
@@ -832,14 +867,19 @@ int main(void)
 
 		//-----------------------------
 		// Timed output
-		if (msTicks - lastDebugMessage > MESSAGE_DELAY) {
-			messageCount++;
-			lastDebugMessage = msTicks;
-			switch (messageCount % 6) {
+		if (msTicks - last_debug_message > TIMED_MESSAGE_DELAY) {
+			message_count++;
+			last_debug_message = msTicks;
+			switch (message_count % 7) {
 				case 0:
-					itoa(mbb_cmd.balance_target_mVolts, str, 10);
-					DEBUG_Print("Balancing to: ");
-					DEBUG_Println(str);
+					if (out_state.balance) {
+						itoa(mbb_cmd.balance_target_mVolts, str, 10);
+						DEBUG_Print("Balancing to: ");
+						DEBUG_Println(str);
+					} else {
+						DEBUG_Println("Not balancing");
+					}
+					
 					break;
 				case 1:
 					itoa(brusa_control.output_mVolts, str, 10);
@@ -864,7 +904,15 @@ int main(void)
 				case 5:
 					DEBUG_Print("Mode: ");
 					DEBUG_Println((SSM_GetMode() == CHARGING) ? "Chrg":"Idle");
+					break;
+				case 6:
+					DEBUG_Print("Brusa Output: ");
+					itoa(out_state.brusa_output, str, 2);
+					DEBUG_Println(str);
+
 					DEBUG_Print("\r\n");
+					break;
+
 			}
 		}
 	}
