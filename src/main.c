@@ -48,11 +48,13 @@
 
 static volatile uint64_t msTicks; // Milliseconds 
 
+
+// Uart
 uint8_t Rx_Buf[UART_RX_BUF_SIZE];
+static char str[100]; // For use with printing
+// static char int_str[100]; // For use with printing in interrupts
 
-static char str[100]; // For use with String Manipulation
-static char int_str[100];
-
+// Off-Chip CAN
 static CCAN_MSG_OBJ_T mcp_msg_obj;
 static NLG5_CTL_T brusa_control;
 static NLG5_STATUS_T brusa_status;
@@ -60,10 +62,8 @@ static NLG5_ACT_I_T brusa_actual_1;
 static NLG5_ACT_II_T brusa_actual_2;
 static NLG5_TEMP_T brusa_temp;
 static NLG5_ERR_T brusa_error;
-static volatile uint32_t brusa_control_count = 0;
 static volatile bool brusa_message_send = false;
 
-static MODE_T mode = IDLE;
 // On-Chip CCAN
 static CCAN_MSG_OBJ_T can_msg_obj;
 static RINGBUFF_T rx_buffer;
@@ -73,15 +73,15 @@ static uint8_t std_msg_send_count = 0;
 
 static MBB_CMD_T mbb_cmd;
 static MBB_STD_T mbb_std;
+static MBB_EXT_T mbb_ext[NODE_COUNT];
 
+// State Variables
+static MODE_T mode = IDLE;
 static PACK_STATE_T pack_state;
 static OUTPUT_STATE_T out_state;
 
-static MBB_EXT_T mbb_ext[NODE_COUNT];
-
-
 // ------------------------------------------------
-// Helper functions that don't belong in util because systick and printing
+// Helper functions that don't belong in util because systick, printing, etc
 
 void _delay_ms(uint32_t ms) {
 	uint32_t currTicks = msTicks;
@@ -123,8 +123,21 @@ int8_t Decode_Brusa(CCAN_MSG_OBJ_T *msg) {
 	} else if (msg->mode_id == NLG5_ACT_II) {
 		Brusa_DecodeActII(&brusa_actual_2, msg);
 	} else if (msg->mode_id == NLG5_ERR) {
-		Brusa_DecodeErr(&brusa_error, msg);
+		// Brusa_DecodeErr(&brusa_error, msg);
+		// int i;
+		// for (i = 0; i < 5; i++) {
+		// 	itoa(msg->data[i], str, 2);
+		// 	DEBUG_Println(str);
+		// }
+
+		msg->data[4] &= 0xF0;
+		brusa_error = 0;
+		uint8_t i;
+		for (i = 0; i < NLG5_ERR_DLC; i++) {
+			brusa_error |= (msg->data[i] << (8 * i));
+		}
 	} else {
+		DEBUG_Println("Unknown Off-Chip Message");
 		return -1;
 	}
 
@@ -170,7 +183,7 @@ int8_t Decode_A123(CCAN_MSG_OBJ_T *msg) {
 				break;
 			}
 		}
-		return i == 0xFF; // Makes sure a valid spot was actually found, assuming you won't have 255 nodes
+		return i == 0xFF;
 	} else {
 		DEBUG_Println("Unknown On-Chip MSG");
 		return -1;
@@ -530,9 +543,12 @@ int main(void) {
 					itoa(brusa_error,str, 2);
 					DEBUG_Println(str);
 					break;
-				case 'm':
+				case 'm': // Print out charge mode and brusa error
 					DEBUG_Print("Charge Mode: ");
 					itoa(Charge_GetMode(), str, 10);
+					DEBUG_Println(str);
+					DEBUG_Print("Error Messages: ");
+					itoa((uint64_t)brusa_error, str, 2);
 					DEBUG_Println(str);
 					break;
 				case 'z': // Print out Cell Voltages (Slow)
@@ -617,18 +633,24 @@ int main(void) {
 		//-----------------------------
 		// Retrieve available brusa messages
 		int8_t tmp = MCP2515_GetFullReceiveBuffer();
+		int8_t res = 0;
 		if (tmp == 2) {
 			MCP2515_ReadBuffer(&mcp_msg_obj, 0);
-			Decode_Brusa(&mcp_msg_obj);
+			res = Decode_Brusa(&mcp_msg_obj);
 			MCP2515_ReadBuffer(&mcp_msg_obj, 1);
-			Decode_Brusa(&mcp_msg_obj);
+			res = Decode_Brusa(&mcp_msg_obj);
 		} else if (tmp == 0) { // Receive Buffer 0 Full
 			MCP2515_ReadBuffer(&mcp_msg_obj, tmp);
-			Decode_Brusa(&mcp_msg_obj);
+			res = Decode_Brusa(&mcp_msg_obj);
 		} else if (tmp == 1) { //Receive buffer 1 full
 			MCP2515_ReadBuffer(&mcp_msg_obj, tmp);
-			Decode_Brusa(&mcp_msg_obj);
+			res = Decode_Brusa(&mcp_msg_obj);
 		} 
+
+		if (res == -1) {
+			DEBUG_Println("Brusa Decode Error");
+			res = 0;
+		}
 
 		//-----------------------------
 		// Send brusa message if its time
@@ -644,7 +666,11 @@ int main(void) {
 		if (!RingBuffer_IsEmpty(&rx_buffer)) {
 			CCAN_MSG_OBJ_T temp_msg;
 			RingBuffer_Pop(&rx_buffer, &temp_msg);
-			Decode_A123(&temp_msg);
+			res = Decode_A123(&temp_msg);
+		}
+
+		if (res == -1) {
+			DEBUG_Println("A123 Decode Error");
 		}
 
 		//-----------------------------

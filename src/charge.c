@@ -11,6 +11,7 @@ static uint32_t max_charge_cAmps;
 static bool balancing;
 
 void Charge_Config(CHARGING_CONFIG_T *config) {
+	mode = CHRG_OFF;
 	max_cell_mVolts = config->max_cell_mVolts;
 	max_pack_mVolts = max_cell_mVolts * config->pack_s;
 	cc_pack_mVolts = config->cc_cell_mVolts * config->pack_s;
