@@ -62,7 +62,7 @@ handler:
 			lastTimeAbove1A = pack_state->msTicks;
 			if (!pack_state->contactors_closed) {
 				out_state->close_contactors = true;
-			} else if (pack_state->brusa_error_message != 0) {
+			} else if (pack_state->brusa_error != 0) {
 				out_state->brusa_clear_latch = true;
 				break;
 			} else {

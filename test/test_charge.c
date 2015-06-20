@@ -40,7 +40,7 @@ TEST_SETUP(Charge_Test) {
 	pack_state.pack_cAmps_in = 0;
 	pack_state.contactors_closed = false;
 	pack_state.msTicks = 0;
-	pack_state.brusa_error_message = 0;
+	pack_state.brusa_error = 0;
 
 	out_state.brusa_mVolts = 0;
 	out_state.brusa_cAmps = 0;
@@ -461,7 +461,7 @@ TEST(Charge_Test, test_brusa_error) {
 	TEST_ASSERT_EQUAL(CHRG_OFF, Charge_GetMode());
 
 	// Set a brusa error
-	pack_state.brusa_error_message = 0x0F;
+	pack_state.brusa_error = 0x0F;
 
 	// Request Charging Mode, should stay in init until contactors turn on and no brusa errors
 	TEST_ASSERT_EQUAL(ERROR_NONE, Charge_Step(&pack_state, REQ_CHARGING, &out_state));
@@ -481,9 +481,9 @@ TEST(Charge_Test, test_brusa_error) {
 	TEST_ASSERT_EQUAL(true, out_state.brusa_output);
 	TEST_ASSERT_EQUAL(true, out_state.close_contactors);
 
-	pack_state.brusa_error_message = 0;
+	pack_state.brusa_error = 0;
 
-	// Now shoudl go ahead to next state
+	// Now should go ahead to next state
 	TEST_ASSERT_EQUAL(ERROR_NONE, Charge_Step(&pack_state, REQ_NONE, &out_state));
 	TEST_ASSERT_EQUAL(CHRG_CC, Charge_GetMode());
 	TEST_ASSERT_EQUAL(CC_PACK_MVOLTS, out_state.brusa_mVolts);

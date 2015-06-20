@@ -16,6 +16,14 @@
 #define MCP_INT_GPIO 0
 #define MCP_INT_PIN 2
 
+#define MBB_STD_MSG_OBJ 1
+#define MBB_EXT_1_MSG_OBJ 2
+#define MBB_EXT_2_MSG_OBJ 3
+#define MBB_EXT_3_MSG_OBJ 4
+#define MBB_EXT_4_MSG_OBJ 5
+#define BCM_STD_MSG_OBJ 6
+#define BCM_EXT_MSG_OBJ 7
+
 #define MODULE_COUNT 1
 #define CELL_SERIES 22
 #define CELL_PARALLEL 3
@@ -26,6 +34,8 @@
 #define BCM_POLL_IDLE_FREQ 1
 #define BCM_POLL_CHARGING_FREQ 100
 #define BCM_POLL_DRAINING_FREQ 100
+
+#define TIMED_MESSAGE_DELAY 1000
 
 #define BRUSA_MAX_MAINS_CAMPS 1500
 
@@ -44,20 +54,22 @@ static char str[100]; // For use with String Manipulation
 static char int_str[100];
 
 static CCAN_MSG_OBJ_T mcp_msg_obj;
-static uint64_t brusa_error_message;
 static NLG5_CTL_T brusa_control;
 static NLG5_STATUS_T brusa_status;
 static NLG5_ACT_I_T brusa_actual_1;
 static NLG5_ACT_II_T brusa_actual_2;
 static NLG5_TEMP_T brusa_temp;
+static NLG5_ERR_T brusa_error;
 static volatile uint32_t brusa_control_count = 0;
 static volatile bool brusa_message_send = false;
 
-static MODE_T mode;
+static MODE_T mode = IDLE;
 // On-Chip CCAN
 static CCAN_MSG_OBJ_T can_msg_obj;
 static RINGBUFF_T rx_buffer;
 static CCAN_MSG_OBJ_T _rx_buffer[CCAN_BUF_SIZE];
+static volatile bool new_std_msg_sent = true;
+static uint8_t std_msg_send_count = 0;
 
 static MBB_CMD_T mbb_cmd;
 static MBB_STD_T mbb_std;
@@ -65,8 +77,7 @@ static MBB_STD_T mbb_std;
 static PACK_STATE_T pack_state;
 static OUTPUT_STATE_T out_state;
 
-static MBB_EXT_T mbb_ext_1;
-static MBB_EXT_T mbb_ext_2;
+static MBB_EXT_T mbb_ext[NODE_COUNT];
 
 
 // ------------------------------------------------
@@ -102,43 +113,70 @@ void _error(ERROR_T errorNo, bool flashLED, bool hang) {
 	Board_LED_On();
 }
 
-// [TODO] Move to Brusa Library
-void decodeBrusa(CCAN_MSG_OBJ_T *msg) {
+int8_t Decode_Brusa(CCAN_MSG_OBJ_T *msg) {
 	if (msg->mode_id == NLG5_STATUS) {
 		Brusa_DecodeStatus(&brusa_status, msg);
-		// brusa_messages_received[0] = true;
-		// DEBUG_Println(">0");
 	} else if (msg->mode_id == NLG5_TEMP) {
 		Brusa_DecodeTemp(&brusa_temp, msg);
-		// brusa_messages_received[3] = true;
-		// DEBUG_Println(">3");
 	} else if (msg->mode_id == NLG5_ACT_I) {
 		Brusa_DecodeActI(&brusa_actual_1, msg);
-		// DEBUG_Print("Actual Out Voltage: ");
-		// itoa(brusa_actual_1.output_mVolts, str, 10);
-		// DEBUG_Println(str);
-
-		// DEBUG_Print("Actual Out Current: ");
-		// itoa(brusa_actual_1.output_cAmps, str, 10);
-		// DEBUG_Println(str);
-		// brusa_messages_received[1] = true;
-		// DEBUG_Println(">1");
 	} else if (msg->mode_id == NLG5_ACT_II) {
 		Brusa_DecodeActII(&brusa_actual_2, msg);
-		// brusa_messages_received[2] = true;
-		// DEBUG_Println(">2");
 	} else if (msg->mode_id == NLG5_ERR) {
-		brusa_error_message = 0;
-		msg->data[4] &= 0xF0;
-		int i;
-		for (i = 0; i < msg->dlc; i++) {
-			brusa_error_message |= msg->data[i] << (8*i);
-		}
-		// brusa_messages_received[4] = true;
-		// DEBUG_Println(">4");
+		Brusa_DecodeErr(&brusa_error, msg);
 	} else {
-		DEBUG_Print("!!U");
+		return -1;
 	}
+
+	return 0;
+}
+
+// [TODO] Don't always update
+int8_t Decode_A123(CCAN_MSG_OBJ_T *msg) {
+	uint16_t id = msg->mode_id & MBB_RESP_MASK;
+	uint8_t mod_id = msg->mode_id & MBB_MOD_ID_MASK;
+	if (id == MBB_STD) {
+
+		MBB_DecodeStd(&mbb_std, msg);
+
+		if (new_std_msg_sent) {
+			pack_state.pack_min_mVolts = mbb_std.mod_min_mVolts;
+			pack_state.pack_max_mVolts = mbb_std.mod_max_mVolts;
+			// [TODO] Is this necessary/do I even care
+				// I coudl make this super precise and have low voltage errors return mod but I think fuck it
+			pack_state.pack_node_min = mod_id;
+			pack_state.pack_node_max = mod_id;
+			new_std_msg_sent = false;
+		} 
+
+		if (mbb_std.mod_min_mVolts < pack_state.pack_min_mVolts) {
+			pack_state.pack_min_mVolts = mbb_std.mod_min_mVolts;
+			pack_state.pack_node_min = mod_id;
+		}
+
+		if (mbb_std.mod_max_mVolts > pack_state.pack_max_mVolts) {
+			pack_state.pack_max_mVolts = mbb_std.mod_max_mVolts;
+			pack_state.pack_node_max = mod_id;
+		}
+
+		pack_state.messagesReceived++;
+		pack_state.pack_avg_mVolts = (mbb_std.mod_avg_mVolts);
+	} else if (id == MBB_EXT1 || id == MBB_EXT2 || id == MBB_EXT3) {
+		uint8_t i;
+		for (i = 0; i < NODE_COUNT; i++) {
+			if (mbb_ext[i].id == 0xFF || mod_id == mbb_ext[i].id) {
+				MBB_DecodeExt(&mbb_ext[i], msg);
+				i = 0xFF;
+				break;
+			}
+		}
+		return i == 0xFF; // Makes sure a valid spot was actually found, assuming you won't have 255 nodes
+	} else {
+		DEBUG_Println("Unknown On-Chip MSG");
+		return -1;
+	}
+
+	return 0;
 }
 
 // ------------------------------------------------
@@ -157,8 +195,6 @@ void TIMER32_0_IRQHandler(void) {
 	}
 }
 
-static volatile bool newMessage = true;
-static uint8_t arbitraryCount = 0;
 // Used for sending BCM_CMD and checking for available data
 void TIMER32_1_IRQHandler(void) {
 	Chip_TIMER_ClearMatch(LPC_TIMER32_1, 0);
@@ -166,20 +202,20 @@ void TIMER32_1_IRQHandler(void) {
 	if (RingBuffer_IsEmpty(&rx_buffer)) {
 		// Send BCM_CMD
 		mbb_cmd.request_type = BCM_REQUEST_TYPE_STD;
-		mbb_cmd.request_id = 5; 		// Should I change this?
+		mbb_cmd.request_id = 5;
 		mbb_cmd.balance = out_state.balance;
 		mbb_cmd.balance_target_mVolts = out_state.balance_mVolts;
 
-		can_msg_obj.msgobj = 7;
+		can_msg_obj.msgobj = BCM_STD_MSG_OBJ;
 		MBB_MakeCMD(&mbb_cmd, &can_msg_obj);
 		LPC_CCAN_API->can_transmit(&can_msg_obj);	
 
-		newMessage = true;
-		if (arbitraryCount++ == 4) {
-			arbitraryCount = 0;
-			mbb_cmd.request_type = BCM_REQUEST_TYPE_EXT;
+		new_std_msg_sent = true;
+		if (std_msg_send_count++ == 4) {
+			std_msg_send_count = 0;
 
-			can_msg_obj.msgobj = 6;
+			mbb_cmd.request_type = BCM_REQUEST_TYPE_EXT;
+			can_msg_obj.msgobj = BCM_EXT_MSG_OBJ;
 			mbb_cmd.request_id = 6;
 			MBB_MakeCMD(&mbb_cmd, &can_msg_obj);
 			LPC_CCAN_API->can_transmit(&can_msg_obj);
@@ -295,11 +331,11 @@ void Init_Globals(void) {
 	out_state.brusa_output = false;
 	out_state.brusa_clear_latch = false;
 
-	mbb_ext_1.id = 0xFF;
-	mbb_ext_2.id = 0xFF;
-
-	mbb_ext_1.bal = 0;
-	mbb_ext_2.bal = 0;
+	uint8_t i;
+	for (i = 0; i < NODE_COUNT; i++) {
+		mbb_ext[i].id = 0xFF;
+		mbb_ext[i].bal = 0;
+	}
 
 	mode = IDLE;
 }
@@ -346,28 +382,32 @@ void Init_CAN(void) {
 	RingBuffer_Init(&rx_buffer, _rx_buffer, sizeof(CCAN_MSG_OBJ_T), 8);
 	RingBuffer_Flush(&rx_buffer);
 
-	// Accept all messages on msgobj 1
-	can_msg_obj.msgobj = 1;
+	// MBB_STD
+	can_msg_obj.msgobj = MBB_STD_MSG_OBJ;
 	can_msg_obj.mode_id = 0x200;
 	can_msg_obj.mask = 0xF00;
 	LPC_CCAN_API->config_rxmsgobj(&can_msg_obj);
 
-	can_msg_obj.msgobj = 2;
+	// MBB_EXT_1
+	can_msg_obj.msgobj = MBB_EXT_1_MSG_OBJ;
 	can_msg_obj.mode_id = 0x300;
 	can_msg_obj.mask = 0xF00;
 	LPC_CCAN_API->config_rxmsgobj(&can_msg_obj);
 
-	can_msg_obj.msgobj = 3;
+	// MBB_EXT_2
+	can_msg_obj.msgobj = MBB_EXT_2_MSG_OBJ;
 	can_msg_obj.mode_id = 0x400;
 	can_msg_obj.mask = 0xF00;
 	LPC_CCAN_API->config_rxmsgobj(&can_msg_obj);
 
-	can_msg_obj.msgobj = 4;
+	// MBB_EXT_3
+	can_msg_obj.msgobj = MBB_EXT_3_MSG_OBJ;
 	can_msg_obj.mode_id = 0x500;
 	can_msg_obj.mask = 0xF00;
 	LPC_CCAN_API->config_rxmsgobj(&can_msg_obj);
 
-	can_msg_obj.msgobj = 9;
+	// MBB_EXT_4
+	can_msg_obj.msgobj = MBB_EXT_4_MSG_OBJ;
 	can_msg_obj.mode_id = 0x600;
 	can_msg_obj.mask = 0xF00;
 	LPC_CCAN_API->config_rxmsgobj(&can_msg_obj);
@@ -406,224 +446,11 @@ void Init_Timers(void) {
 // ------------------------------------------------
 // Main Program
 
-bool b = true;
-uint8_t counttt = 0;
 
-int main2(void) {
-	Init_Core();
-	Init_SM();
-	Init_Board();
-	Init_Globals();
-	Init_CAN();
-	Init_Timers();
-
-
-	counttt = 0;
-	brusa_control.output_mVolts = 0;
-	brusa_control.output_cAmps = 0;
-	brusa_control.ventilation_request = 1;
-	Chip_TIMER_Enable(LPC_TIMER32_0);
-	brusa_control_count = 0;
-
-	DEBUG_Print("Timer Enabled");
-
-	uint8_t rec = 0;
-	uint8_t tec = 0;
-	while(1) {
-
-		// if (counttt == 20) {
-		// 	counttt++;
-		// 	DEBUG_Println("Starting this bitch");
-		// 	brusa_control.output_mVolts = 73100;
-		// 	brusa_control.output_cAmps = 100;
-		// }
-
-		uint8_t count;
-		if ((count = Chip_UART_Read(LPC_USART, Rx_Buf, UART_RX_BUF_SIZE)) != 0) {
-			switch (Rx_Buf[0]) {
-				case 'a':				
-					DEBUG_Print("Actual Mains Voltage: ");
-					itoa(brusa_actual_1.mains_mVolts, str, 10);
-					DEBUG_Print(str);
-					DEBUG_Print("\r\n");
-
-					DEBUG_Print("Mains type: ");
-					itoa(brusa_actual_1.mains_cAmps, str, 10);
-					DEBUG_Print(str);
-					DEBUG_Print("\r\n");
-
-					DEBUG_Print("Temp: 0x");
-					itoa(brusa_temp.power_temp, str, 16);
-					DEBUG_Print(str);
-					DEBUG_Print("\r\n");
-					break;
-				case 'b':
-					DEBUG_Print("Actual Out Voltage: ");
-					itoa(brusa_actual_1.output_mVolts, str, 10);
-					DEBUG_Println(str);
-
-					DEBUG_Print("Actual Out Current: ");
-					itoa(brusa_actual_1.output_cAmps, str, 10);
-					DEBUG_Println(str);
-					break;
-				case 'e':
-					MCP2515_Read(REC, &rec, 1);
-					MCP2515_Read(TEC, &tec, 1);
-
-					DEBUG_Print("REC: ");
-					itoa(rec, str, 10);
-					DEBUG_Println(str);
-
-					DEBUG_Print("TEC: ");
-					itoa(tec, str, 10);
-					DEBUG_Println(str);
-					break;
-				case 'f':
-					itoa(pack_state.pack_min_mVolts, str, 10);
-					DEBUG_Print("Pack Min Voltage: ");
-					DEBUG_Print(str);
-					DEBUG_Print("\r\n");
-					itoa(pack_state.pack_max_mVolts, str, 10);
-					DEBUG_Print("Pack Max Voltage: ");
-					DEBUG_Print(str);
-					DEBUG_Print("\r\n");
-					itoa(pack_state.pack_avg_mVolts, str, 10);
-					DEBUG_Print("Pack Avg Voltage: ");
-					DEBUG_Print(str);
-					DEBUG_Print("\r\n");
-					itoa(pack_state.messagesReceived, str, 10);
-					DEBUG_Print("Messages Received: ");
-					DEBUG_Print(str);
-					DEBUG_Print("\r\n");
-
-					break;
-				case 'y':
-					itoa(mbb_ext_1.bal, str, 2);
-					DEBUG_Print("Mod 1: 0b");
-					DEBUG_Println(str);
-					itoa(mbb_ext_2.bal, str, 2);
-					DEBUG_Print("Mod 2: 0b");
-					DEBUG_Println(str);
-					break;
-				case 'z':
-					for (count = 0; count < 12; count++) {
-						itoa(mbb_ext_1.cell_mVolts[count], str, 10);
-						DEBUG_Println(str);
-					}
-
-					for (count = 0; count < 12; count++) {
-						itoa(mbb_ext_2.cell_mVolts[count], str, 10);
-						DEBUG_Println(str);
-					}
-				default:
-					DEBUG_Print("Unknown Command\r\n");
-			}
-		}
-		// Retrive any available Brusa Messages for shits
-		int8_t tmp = MCP2515_GetFullReceiveBuffer();
-		// itoa(tmp, str, 10);
-		// DEBUG_Print(">");
-		// DEBUG_Println(str);
-		if (tmp == 2) {
-			MCP2515_ReadBuffer(&mcp_msg_obj, 0);
-			decodeBrusa(&mcp_msg_obj);
-
-			MCP2515_ReadBuffer(&mcp_msg_obj, 1);
-			decodeBrusa(&mcp_msg_obj);
-		} else if (tmp == 0) { // Receiv Buffer 0 Full
-			MCP2515_ReadBuffer(&mcp_msg_obj, tmp);
-			decodeBrusa(&mcp_msg_obj);
-		} else if (tmp == 1) { //Receive buffer 1 full
-			MCP2515_ReadBuffer(&mcp_msg_obj, tmp);
-			decodeBrusa(&mcp_msg_obj);
-		} 
-
-		if (brusa_message_send) {
-			counttt++;
-			brusa_message_send = false;
-			Brusa_MakeCTL(&brusa_control, &mcp_msg_obj);
-			MCP2515_LoadBuffer(0, &mcp_msg_obj);
-			MCP2515_SendBuffer(0);
-		}
-
-		if (true) {
-			uint8_t flag = 0;
-			MCP2515_Read(EFLG, &flag, 1);
-			if (flag & 0x80) {
-				// Buffer 1 Overflow
-				MCP2515_BitModify(EFLG, 0x80, 0x00);
-				DEBUG_Println("1");
-			} else if (flag & 0x40) {
-				// Buffer 0 Overflow
-				MCP2515_BitModify(EFLG, 0x40, 0x00);
-				DEBUG_Println("0");
-			}
-		}
-
-		if (!RingBuffer_IsEmpty(&rx_buffer)) {
-			CCAN_MSG_OBJ_T temp_msg;
-			RingBuffer_Pop(&rx_buffer, &temp_msg);
-			uint8_t mod_id = temp_msg.mode_id & 0xFF;
-			if ((temp_msg.mode_id & MBB_STD_MASK) == MBB_STD) {
-
-				MBB_DecodeStd(&mbb_std, &temp_msg);
-
-				if (newMessage) {
-					pack_state.pack_min_mVolts = mbb_std.mod_min_mVolts;
-					pack_state.pack_max_mVolts = mbb_std.mod_max_mVolts;
-					pack_state.pack_node_min = mod_id;
-					pack_state.pack_node_max = mod_id;
-					newMessage = false;
-				}
-				if (mbb_std.mod_min_mVolts < pack_state.pack_min_mVolts) {
-					pack_state.pack_min_mVolts = mbb_std.mod_min_mVolts;
-					pack_state.pack_node_min = mod_id;
-				}
-
-				if (mbb_std.mod_max_mVolts > pack_state.pack_max_mVolts) {
-					pack_state.pack_max_mVolts = mbb_std.mod_max_mVolts;
-					pack_state.pack_node_max = mod_id;
-				}
-
-				itoa(mbb_std.balance_c_count, int_str, 16);
-				// DEBUG_Print("Active Balance Circuits: 0x");
-				// DEBUG_Println(int_str);
-
-				pack_state.messagesReceived++;
-				pack_state.pack_avg_mVolts = (mbb_std.mod_avg_mVolts);
-			} else if ((temp_msg.mode_id & MBB_EXT_MASK) == MBB_EXT1 ||
-						(temp_msg.mode_id & MBB_EXT_MASK) == MBB_EXT2 ||
-						(temp_msg.mode_id & MBB_EXT_MASK) == MBB_EXT3) {
-				
-
-				if (mbb_ext_1.id == 0xFF || MBB_GetModID(temp_msg.mode_id) == mbb_ext_1.id) {
-					MBB_DecodeExt(&mbb_ext_1, &temp_msg);
-					// DEBUG_Println("EXT1");
-				} else if (mbb_ext_2.id == 0xFF || MBB_GetModID(temp_msg.mode_id) == mbb_ext_2.id) {
-					MBB_DecodeExt(&mbb_ext_2, &temp_msg);
-					// DEBUG_Println("EXT2");
-				} else {
-					DEBUG_Println("Got wierd battery id");
-				}
-			} else if ((temp_msg.mode_id & 0xF00) == 0x600) {
-				uint32_t voltage_mVolts = (temp_msg.data[6] << 8) | temp_msg.data[7];
-				voltage_mVolts = (voltage_mVolts + 6000);
-				itoa(voltage_mVolts, str, 10);
-				DEBUG_Print("Pack Voltage: ");
-				DEBUG_Println(str);
-			} else {
-				DEBUG_Println("Unknown On-Chip MSG");
-			}
-		}
-	}
-}
-
-#define TIMED_MESSAGE_DELAY 1000
 static uint64_t last_debug_message = 0;
 static uint32_t message_count = 0;
 
-int main(void)
-{
+int main(void) {
 
 	Init_Core();
 	Init_SM();
@@ -692,15 +519,15 @@ int main(void)
 
 					break;
 				case 'y': // Print out Module Balance State
-					itoa(mbb_ext_1.bal, str, 2);
+					itoa(mbb_ext[0].bal, str, 2);
 					DEBUG_Print("Mod 1: 0b");
 					DEBUG_Println(str);
-					itoa(mbb_ext_2.bal, str, 2);
+					itoa(mbb_ext[1].bal, str, 2);
 					DEBUG_Print("Mod 2: 0b");
 					DEBUG_Println(str);
 					break;
 				case 'e': 
-					itoa(brusa_error_message,str, 2);
+					itoa(brusa_error,str, 2);
 					DEBUG_Println(str);
 					break;
 				case 'm':
@@ -710,12 +537,12 @@ int main(void)
 					break;
 				case 'z': // Print out Cell Voltages (Slow)
 					for (count = 0; count < 12; count++) {
-						itoa(mbb_ext_1.cell_mVolts[count], str, 10);
+						itoa(mbb_ext[0].cell_mVolts[count], str, 10);
 						DEBUG_Println(str);
 					}
 
 					for (count = 0; count < 12; count++) {
-						itoa(mbb_ext_2.cell_mVolts[count], str, 10);
+						itoa(mbb_ext[1].cell_mVolts[count], str, 10);
 						DEBUG_Println(str);
 					}
 				default:
@@ -737,13 +564,35 @@ int main(void)
 		// Update pack_state
 		pack_state.contactors_closed = Board_Contactors_Closed();
 		pack_state.msTicks = msTicks;
-		pack_state.brusa_error_message = brusa_error_message;
+		pack_state.brusa_error = brusa_error;
 
 		//-----------------------------
 		// SSM Step
 		ERROR_T result = SSM_Step(&pack_state, inp, &out_state);
 		if (result != ERROR_NONE) {
 			_error(result, true, false);
+		}
+
+		//-----------------------------
+		// Check if SSM has Changed State
+		// Currently only changes Poll Frequency
+		// [TODO] Consider setting a status LED!!
+		if (SSM_GetMode() != mode) {
+			mode = SSM_GetMode();
+			switch (SSM_GetMode()) {
+				case IDLE:
+					Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, Hertz2Ticks(BCM_POLL_IDLE_FREQ));
+					Chip_TIMER_Reset(LPC_TIMER32_1); // Otherwise shit gets FUCKED
+					break;
+				case CHARGING:
+					Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, Hertz2Ticks(BCM_POLL_CHARGING_FREQ));
+					Chip_TIMER_Reset(LPC_TIMER32_1);
+					break;
+				case DRAINING:
+					Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, Hertz2Ticks(BCM_POLL_DRAINING_FREQ));
+					Chip_TIMER_Reset(LPC_TIMER32_1);
+					break;
+			}
 		}
 
 		//-----------------------------
@@ -770,15 +619,15 @@ int main(void)
 		int8_t tmp = MCP2515_GetFullReceiveBuffer();
 		if (tmp == 2) {
 			MCP2515_ReadBuffer(&mcp_msg_obj, 0);
-			decodeBrusa(&mcp_msg_obj);
+			Decode_Brusa(&mcp_msg_obj);
 			MCP2515_ReadBuffer(&mcp_msg_obj, 1);
-			decodeBrusa(&mcp_msg_obj);
+			Decode_Brusa(&mcp_msg_obj);
 		} else if (tmp == 0) { // Receive Buffer 0 Full
 			MCP2515_ReadBuffer(&mcp_msg_obj, tmp);
-			decodeBrusa(&mcp_msg_obj);
+			Decode_Brusa(&mcp_msg_obj);
 		} else if (tmp == 1) { //Receive buffer 1 full
 			MCP2515_ReadBuffer(&mcp_msg_obj, tmp);
-			decodeBrusa(&mcp_msg_obj);
+			Decode_Brusa(&mcp_msg_obj);
 		} 
 
 		//-----------------------------
@@ -789,80 +638,13 @@ int main(void)
 			MCP2515_LoadBuffer(0, &mcp_msg_obj);
 			MCP2515_SendBuffer(0);
 		}
-
-		//-----------------------------
-		// Set A123 Poll frequency
-		// [TODO] Make this happen only on change, not every cycle
-		if (SSM_GetMode() != mode) {
-			mode = SSM_GetMode();
-			switch (SSM_GetMode()) {
-				case IDLE:
-					Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, Hertz2Ticks(BCM_POLL_IDLE_FREQ));
-					Chip_TIMER_Reset(LPC_TIMER32_1);
-					break;
-				case CHARGING:
-					Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, Hertz2Ticks(BCM_POLL_CHARGING_FREQ));
-					Chip_TIMER_Reset(LPC_TIMER32_1);
-					break;
-				case DRAINING:
-					Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, Hertz2Ticks(BCM_POLL_DRAINING_FREQ));
-					Chip_TIMER_Reset(LPC_TIMER32_1);
-					break;
-			}
-
-		}
 		
 		//-----------------------------
 		// Check for and decode A123 Messages
 		if (!RingBuffer_IsEmpty(&rx_buffer)) {
 			CCAN_MSG_OBJ_T temp_msg;
 			RingBuffer_Pop(&rx_buffer, &temp_msg);
-			uint8_t mod_id = temp_msg.mode_id & 0xFF;
-			if ((temp_msg.mode_id & MBB_STD_MASK) == MBB_STD) {
-
-				MBB_DecodeStd(&mbb_std, &temp_msg);
-
-				if (newMessage) {
-					pack_state.pack_min_mVolts = mbb_std.mod_min_mVolts;
-					pack_state.pack_max_mVolts = mbb_std.mod_max_mVolts;
-					pack_state.pack_node_min = mod_id;
-					pack_state.pack_node_max = mod_id;
-					newMessage = false;
-				}
-				if (mbb_std.mod_min_mVolts < pack_state.pack_min_mVolts) {
-					pack_state.pack_min_mVolts = mbb_std.mod_min_mVolts;
-					pack_state.pack_node_min = mod_id;
-				}
-
-				if (mbb_std.mod_max_mVolts > pack_state.pack_max_mVolts) {
-					pack_state.pack_max_mVolts = mbb_std.mod_max_mVolts;
-					pack_state.pack_node_max = mod_id;
-				}
-
-				pack_state.messagesReceived++;
-				pack_state.pack_avg_mVolts = (mbb_std.mod_avg_mVolts);
-			} else if ((temp_msg.mode_id & MBB_EXT_MASK) == MBB_EXT1 ||
-						(temp_msg.mode_id & MBB_EXT_MASK) == MBB_EXT2 ||
-						(temp_msg.mode_id & MBB_EXT_MASK) == MBB_EXT3) {
-				
-
-				if (mbb_ext_1.id == 0xFF || MBB_GetModID(temp_msg.mode_id) == mbb_ext_1.id) {
-					MBB_DecodeExt(&mbb_ext_1, &temp_msg);
-				} else if (mbb_ext_2.id == 0xFF || MBB_GetModID(temp_msg.mode_id) == mbb_ext_2.id) {
-					MBB_DecodeExt(&mbb_ext_2, &temp_msg);
-				} else {
-					DEBUG_Println("Got wierd battery id");
-				}
-			} else if ((temp_msg.mode_id & 0xF00) == 0x600) {
-				uint32_t voltage_mVolts = (temp_msg.data[6] << 8) | temp_msg.data[7];
-				voltage_mVolts = (voltage_mVolts + 6000);
-				itoa(voltage_mVolts, str, 10);
-				DEBUG_Print("Pack Voltage: ");
-				DEBUG_Println(str);
-			} else {
-				DEBUG_Println("Unknown On-Chip MSG");
-			}
-
+			Decode_A123(&temp_msg);
 		}
 
 		//-----------------------------

@@ -4,6 +4,7 @@
 // #include "lpc_types.h"
 #include <stdint.h>
 #include <stdbool.h>
+#include "brusa.h"
 
 // ------------------------------------------------
 // Structs and Enum
@@ -29,7 +30,7 @@ typedef struct {
 	uint16_t pack_cAmps_in;
 	bool contactors_closed;
 	volatile uint64_t msTicks;
-	volatile uint64_t brusa_error_message;
+	NLG5_ERR_T brusa_error;
 } PACK_STATE_T;
 
 typedef struct {
