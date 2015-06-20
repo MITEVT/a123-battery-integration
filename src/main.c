@@ -69,14 +69,19 @@ static CCAN_MSG_OBJ_T can_msg_obj;
 static RINGBUFF_T rx_buffer;
 static CCAN_MSG_OBJ_T _rx_buffer[CCAN_BUF_SIZE];
 static volatile bool new_std_msg_sent = true;
+static volatile bool pack_state_staged = false;
 static uint8_t std_msg_send_count = 0;
 
 static MBB_CMD_T mbb_cmd;
 static MBB_STD_T mbb_std;
 static MBB_EXT_T mbb_ext[NODE_COUNT];
 
+static MBB_REC_T mbb_std_rec[NODE_COUNT];
+static uint8_t mbb_std_rec_count = 0;
+
 // State Variables
 static MODE_T mode = IDLE;
+static PACK_STATE_T staged_pack_state;
 static PACK_STATE_T pack_state;
 static OUTPUT_STATE_T out_state;
 
@@ -124,11 +129,7 @@ int8_t Decode_Brusa(CCAN_MSG_OBJ_T *msg) {
 		Brusa_DecodeActII(&brusa_actual_2, msg);
 	} else if (msg->mode_id == NLG5_ERR) {
 		// Brusa_DecodeErr(&brusa_error, msg);
-		// int i;
-		// for (i = 0; i < 5; i++) {
-		// 	itoa(msg->data[i], str, 2);
-		// 	DEBUG_Println(str);
-		// }
+		// [TODO] Figure out why this doesn't work
 
 		msg->data[4] &= 0xF0;
 		brusa_error = 0;
@@ -153,27 +154,41 @@ int8_t Decode_A123(CCAN_MSG_OBJ_T *msg) {
 		MBB_DecodeStd(&mbb_std, msg);
 
 		if (new_std_msg_sent) {
-			pack_state.pack_min_mVolts = mbb_std.mod_min_mVolts;
-			pack_state.pack_max_mVolts = mbb_std.mod_max_mVolts;
-			// [TODO] Is this necessary/do I even care
-				// I coudl make this super precise and have low voltage errors return mod but I think fuck it
+			staged_pack_state.pack_min_mVolts = mbb_std.mod_min_mVolts;
+			staged_pack_state.pack_max_mVolts = mbb_std.mod_max_mVolts;
 			pack_state.pack_node_min = mod_id;
 			pack_state.pack_node_max = mod_id;
 			new_std_msg_sent = false;
 		} 
 
-		if (mbb_std.mod_min_mVolts < pack_state.pack_min_mVolts) {
-			pack_state.pack_min_mVolts = mbb_std.mod_min_mVolts;
+		if (mbb_std.mod_min_mVolts < staged_pack_state.pack_min_mVolts) {
+			staged_pack_state.pack_min_mVolts = mbb_std.mod_min_mVolts;
 			pack_state.pack_node_min = mod_id;
 		}
 
-		if (mbb_std.mod_max_mVolts > pack_state.pack_max_mVolts) {
-			pack_state.pack_max_mVolts = mbb_std.mod_max_mVolts;
+		if (mbb_std.mod_max_mVolts > staged_pack_state.pack_max_mVolts) {
+			staged_pack_state.pack_max_mVolts = mbb_std.mod_max_mVolts;
 			pack_state.pack_node_max = mod_id;
 		}
 
 		pack_state.messagesReceived++;
-		pack_state.pack_avg_mVolts = (mbb_std.mod_avg_mVolts);
+		pack_state.pack_avg_mVolts = mbb_std.mod_avg_mVolts;
+		uint8_t i;
+		for (i = 0; i < NODE_COUNT; i++) {
+			if (mbb_std_rec[i].id == 0xFF || mod_id == mbb_std_rec[i].id) {
+				mbb_std_rec[i].id = mod_id;
+				if (!mbb_std_rec[i].flag) {
+					mbb_std_rec[i].flag = true;
+					mbb_std_rec_count++;
+
+				}
+				
+				i = 0xFF;
+				break;
+			}
+		}
+
+		return i == 0xFF;
 	} else if (id == MBB_EXT1 || id == MBB_EXT2 || id == MBB_EXT3) {
 		uint8_t i;
 		for (i = 0; i < NODE_COUNT; i++) {
@@ -294,7 +309,7 @@ void Init_SM(void) {
 	charge_config.max_cell_mVolts = 3600;
 	charge_config.cc_cell_mVolts = 3700;
 	charge_config.cell_capacity_cAmpHours = 2000; 	// 20 Ahr
-	charge_config.cell_mC_rating = 133; 			// .133 C
+	charge_config.cell_mC_rating = 66; 			// .133 C
 
 	DRAINING_CONFIG_T drain_config;
 	drain_config.min_cell_mVolts = 2500; //Specs say 2000mV but lets play it safe for now
@@ -336,8 +351,13 @@ void Init_Globals(void) {
 	pack_state.pack_node_max = 0;
 	pack_state.pack_avg_mVolts = 0;
 	pack_state.messagesReceived = 0;
+	pack_state.pack_cAmps_in = 0;
+
+	staged_pack_state.pack_min_mVolts = 0xFFFFFFFF;
+	staged_pack_state.pack_max_mVolts = 0;
 
 	out_state.balance_mVolts = BCM_BALANCE_OFF;
+	out_state.balance = false;
 	out_state.brusa_mVolts = 0;
 	out_state.brusa_cAmps = 0;
 	out_state.close_contactors = false;
@@ -348,7 +368,12 @@ void Init_Globals(void) {
 	for (i = 0; i < NODE_COUNT; i++) {
 		mbb_ext[i].id = 0xFF;
 		mbb_ext[i].bal = 0;
+		mbb_std_rec[i].id = 0xFF;
+		mbb_std_rec[i].flag = false;
 	}
+
+	mbb_std_rec_count = 0;
+	pack_state_staged = false;
 
 	mode = IDLE;
 }
@@ -561,6 +586,7 @@ int main(void) {
 						itoa(mbb_ext[1].cell_mVolts[count], str, 10);
 						DEBUG_Println(str);
 					}
+					break;
 				default:
 					DEBUG_Print("Unknown Command\r\n");
 			}
@@ -581,6 +607,7 @@ int main(void) {
 		pack_state.contactors_closed = Board_Contactors_Closed();
 		pack_state.msTicks = msTicks;
 		pack_state.brusa_error = brusa_error;
+		pack_state.pack_cAmps_in = brusa_actual_1.output_cAmps;
 
 		//-----------------------------
 		// SSM Step
@@ -663,7 +690,24 @@ int main(void) {
 		
 		//-----------------------------
 		// Check for and decode A123 Messages
+
 		if (!RingBuffer_IsEmpty(&rx_buffer)) {
+			if (new_std_msg_sent) {
+				// pack_state.pack_min_mVolts = staged_pack_state.pack_min_mVolts;
+				// pack_state.pack_max_mVolts = staged_pack_state.pack_max_mVolts;
+				// mbb_std_rec_count = 0;
+				// uint8_t i;
+				// for (i = 0; i < NODE_COUNT; i++) {
+				// 	mbb_std_rec[i].flag = false;
+				// }
+				if (pack_state_staged) {
+					pack_state_staged = false;
+				} else {
+					DEBUG_Println("New message sent without staging finish");
+				}
+			}
+
+
 			CCAN_MSG_OBJ_T temp_msg;
 			RingBuffer_Pop(&rx_buffer, &temp_msg);
 			res = Decode_A123(&temp_msg);
@@ -672,6 +716,16 @@ int main(void) {
 		if (res == -1) {
 			DEBUG_Println("A123 Decode Error");
 		}
+
+		if (mbb_std_rec_count >= NODE_COUNT) {
+			pack_state_staged = true;
+			pack_state.pack_min_mVolts = staged_pack_state.pack_min_mVolts;
+			pack_state.pack_max_mVolts = staged_pack_state.pack_max_mVolts;
+			mbb_std_rec_count = 0;
+			uint8_t i;
+			for (i = 0; i < NODE_COUNT; i++) {
+				mbb_std_rec[i].flag = false;
+			}		}
 
 		//-----------------------------
 		// Timed output

@@ -2,7 +2,7 @@
 
 static CHARGING_MODE_T mode = CHRG_OFF;
 
-static uint64_t lastTimeAbove1A = 0;
+static uint64_t lastTimeAbove1A;
 static uint32_t max_pack_mVolts;
 static uint32_t max_cell_mVolts;
 static uint32_t cc_pack_mVolts;
@@ -17,6 +17,7 @@ void Charge_Config(CHARGING_CONFIG_T *config) {
 	cc_pack_mVolts = config->cc_cell_mVolts * config->pack_s;
 	pack_capacity_cAmpHours = config->cell_capacity_cAmpHours * config->pack_p;
 	max_charge_cAmps = pack_capacity_cAmpHours * (uint32_t)(config->cell_mC_rating) / 1000;
+	lastTimeAbove1A = 0;
 	// Store all values into EEPROM
 }
 
