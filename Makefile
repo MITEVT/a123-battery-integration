@@ -416,7 +416,7 @@ writeflash: all
 # Opening Picocom
 #-----------------------------------------------------------------------------#
 
-com: $(C_OBJS)
+com:
 	@echo "Opening" $(COMPORT)
 	@picocom -b 57600 $(COMPORT)
 
