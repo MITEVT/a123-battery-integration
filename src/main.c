@@ -1,3 +1,10 @@
+/**
+ * @file main.c
+ * @author Eric Ponce
+ * @date 23 June 2015
+ * @brief Main Program File
+ */
+
 #include "board.h"
 #include <string.h>
 
@@ -32,8 +39,8 @@
 #define NODE_COUNT MODULE_COUNT * NODES_PER_MODULE
 
 #define BCM_POLL_IDLE_FREQ 1
-#define BCM_POLL_CHARGING_FREQ 100
-#define BCM_POLL_DRAINING_FREQ 100
+#define BCM_POLL_CHARGING_FREQ 40
+#define BCM_POLL_DRAINING_FREQ 40
 
 #define TIMED_MESSAGE_DELAY 1000
 
@@ -47,7 +54,6 @@
 // Global Static Variables
 
 static volatile uint64_t msTicks; // Milliseconds 
-
 
 // Uart
 uint8_t Rx_Buf[UART_RX_BUF_SIZE];
@@ -68,16 +74,18 @@ static volatile bool brusa_message_send = false;
 static CCAN_MSG_OBJ_T can_msg_obj;
 static RINGBUFF_T rx_buffer;
 static CCAN_MSG_OBJ_T _rx_buffer[CCAN_BUF_SIZE];
-static volatile bool new_std_msg_sent = true;
-static volatile bool pack_state_staged = false;
 static uint8_t std_msg_send_count = 0;
 
+// A123 CAN Message Structures
 static MBB_CMD_T mbb_cmd;
 static MBB_STD_T mbb_std;
 static MBB_EXT_T mbb_ext[NODE_COUNT];
 
-static MBB_REC_T mbb_std_rec[NODE_COUNT];
-static uint8_t mbb_std_rec_count = 0;
+// State staging variables
+static volatile bool new_std_msg_sent = true;
+static volatile bool pack_state_staged = false;
+static volatile MBB_REC_T mbb_std_rec[NODE_COUNT];
+static volatile uint8_t mbb_std_rec_count = 0;
 
 // State Variables
 static MODE_T mode = IDLE;
@@ -85,9 +93,19 @@ static PACK_STATE_T staged_pack_state;
 static PACK_STATE_T pack_state;
 static OUTPUT_STATE_T out_state;
 
+// Timed Print
+static uint64_t last_debug_message = 0;
+static uint32_t message_count = 0;
+
 // ------------------------------------------------
 // Helper functions that don't belong in util because systick, printing, etc
 
+/**
+ * @details Relies on SysTick and therefore will not function with interrupts 
+ * disabled or in a higher priority interrupt
+ * 
+ * @param ms number of milliseconds to delay
+ */
 void _delay_ms(uint32_t ms) {
 	uint32_t currTicks = msTicks;
 	while(msTicks - currTicks < ms) {
@@ -95,6 +113,13 @@ void _delay_ms(uint32_t ms) {
 	}
 }
 
+/**
+ * @details Throws error through multiple means: print, flash, and/or hang
+ * 
+ * @param errorNo The error number
+ * @param flashLED set to true to have processor flash the main LED
+ * @param hang set to true to hang the processor
+ */
 void _error(ERROR_T errorNo, bool flashLED, bool hang) {
 	DEBUG_Print("Error(");
 	itoa(errorNo, str, 10);
@@ -118,6 +143,13 @@ void _error(ERROR_T errorNo, bool flashLED, bool hang) {
 	Board_LED_On();
 }
 
+/**
+ * @details Takes a CAN messege object and determines if it is a valid Brusa message.
+ * If so, it stuffs it into the appropriate static struct
+ * 
+ * @param msg CAN message object to decode
+ * @return 0 if properly decodes, -1 otherwise
+ */
 int8_t Decode_Brusa(CCAN_MSG_OBJ_T *msg) {
 	if (msg->mode_id == NLG5_STATUS) {
 		Brusa_DecodeStatus(&brusa_status, msg);
@@ -145,7 +177,13 @@ int8_t Decode_Brusa(CCAN_MSG_OBJ_T *msg) {
 	return 0;
 }
 
-// [TODO] Don't always update
+/**
+ * @details Takes a CAN message object and determines if it is a valid A123 MBB message.
+ * If so, it stuffs it into the appropriate static struct
+ * 
+ * @param msg CAN message object to decode
+ * @return 0 if properly decodes, -1 otherwise
+ */
 int8_t Decode_A123(CCAN_MSG_OBJ_T *msg) {
 	uint16_t id = msg->mode_id & MBB_RESP_MASK;
 	uint8_t mod_id = msg->mode_id & MBB_MOD_ID_MASK;
@@ -180,9 +218,7 @@ int8_t Decode_A123(CCAN_MSG_OBJ_T *msg) {
 				if (!mbb_std_rec[i].flag) {
 					mbb_std_rec[i].flag = true;
 					mbb_std_rec_count++;
-
-				}
-				
+				}	
 				i = 0xFF;
 				break;
 			}
@@ -210,11 +246,16 @@ int8_t Decode_A123(CCAN_MSG_OBJ_T *msg) {
 // ------------------------------------------------
 // IRQs
 
+/**
+ * @details Increments millisecond counter
+ */
 void SysTick_Handler(void) {
 	msTicks++;
-	pack_state.msTicks = msTicks;
 }
 
+/**
+ * @details Timer interrupt to maintain Brusa communication timing
+ */
 void TIMER32_0_IRQHandler(void) {
 	if (Chip_TIMER_MatchPending(LPC_TIMER32_0, 0)) {
 		Chip_TIMER_ClearMatch(LPC_TIMER32_0, 0);
@@ -223,7 +264,9 @@ void TIMER32_0_IRQHandler(void) {
 	}
 }
 
-// Used for sending BCM_CMD and checking for available data
+/**
+ * @details Timer interrupt to request A123 MBB information
+ */
 void TIMER32_1_IRQHandler(void) {
 	Chip_TIMER_ClearMatch(LPC_TIMER32_1, 0);
 	// Update Battery Status
@@ -255,9 +298,11 @@ void TIMER32_1_IRQHandler(void) {
 // ------------------------------------------------
 // CAN Callbacks
 
-/*	CAN receive callback */
-/*	Function is executed by the Callback handler after
-    a CAN message has been received */
+/**
+ * @details Moves received on-chip CAN messages into ring buffer
+ * 
+ * @param msg_obj_num CAN message object that received message
+ */
 void CAN_rx(uint8_t msg_obj_num) {
 	/* Determine which CAN message has been received */
 	can_msg_obj.msgobj = msg_obj_num;
@@ -266,19 +311,21 @@ void CAN_rx(uint8_t msg_obj_num) {
 	RingBuffer_Insert(&rx_buffer, &can_msg_obj);
 }
 
-/*	CAN transmit callback */
-/*	Function is executed by the Callback handler after
-    a CAN message has been transmitted */
+
+/**
+ * @details On-chip CAN transmit callback. Currently does nothing
+ * 
+ * @param msg_obj_num CAN message object that sent message
+ */
 void CAN_tx(uint8_t msg_obj_num) {
 	msg_obj_num++;
 }
 
-/*	CAN error callback */
-/*	Function is executed by the Callback handler after
-    an error has occured on the CAN bus */
-
-// NOTE: Because these callbacks are called by an interrupt routine
-// 		CANNOT use anything with msTicks, including _error, so should set a f
+/**
+ * @details On-chip CAN error callback. Currently does nothing
+ * 
+ * @param error_info error info
+ */
 void CAN_error(uint32_t error_info) {
 	error_info++;
 	DEBUG_Print("On-chip CAN Error\n\r");
@@ -288,6 +335,9 @@ void CAN_error(uint32_t error_info) {
 // ------------------------------------------------
 // Init Functions
 
+/**
+ * @details Initializes SysTick Peripheral
+ */
 void Init_Core(void) {
 	SystemCoreClockUpdate();
 
@@ -301,6 +351,9 @@ void Init_Core(void) {
 	}
 }
 
+/**
+ * @details Initializes state machines and sets configuration data
+ */
 void Init_SM(void) {
 
 	CHARGING_CONFIG_T charge_config;
@@ -320,6 +373,9 @@ void Init_SM(void) {
 
 }
 
+/**
+ * @details Initializes board peripherals
+ */
 void Init_Board(void) {
 	// ------------------------------------------------
 	// Board Periph Init
@@ -332,11 +388,13 @@ void Init_Board(void) {
 	// Communication Init
 
 	Board_UART_Init(UART_BAUD);
-
 	Board_SPI_Init(SPI_BAUD);
 	Board_CCAN_Init(CCAN_BAUD, CAN_rx, CAN_tx, CAN_error);
 }
 
+/**
+ * @details Initializes statically allocated global variables
+ */
 void Init_Globals(void) {
 	brusa_control.enable = 1;
 	brusa_control.clear_error = 0;
@@ -378,6 +436,9 @@ void Init_Globals(void) {
 	mode = IDLE;
 }
 
+/**
+ * @details Initializes both on-chip and off-chip CAN and sets up filters and masks.
+ */
 void Init_CAN(void) {
 	// ------------------------------------------------
 	// MCP2515 Init
@@ -451,6 +512,9 @@ void Init_CAN(void) {
 	LPC_CCAN_API->config_rxmsgobj(&can_msg_obj);
 }
 
+/**
+ * @details Initiizes timers for timer based interrupts
+ */
 void Init_Timers(void) {
 	// ------------------------------------------------
 	// Timer 32_0 Init
@@ -484,10 +548,10 @@ void Init_Timers(void) {
 // ------------------------------------------------
 // Main Program
 
-
-static uint64_t last_debug_message = 0;
-static uint32_t message_count = 0;
-
+/**
+ * @details Where all the magic happens
+ * @return Shouldn't return
+ */
 int main(void) {
 
 	Init_Core();
@@ -778,6 +842,7 @@ int main(void) {
 			}
 		}
 	}
+
 	return 0;
 }
 

@@ -1,5 +1,5 @@
 /**************************************************************************//**
- * @file     system_LPC11xx.c
+ * @file     sysinit.c
  * @brief    CMSIS Cortex-M0 Device Peripheral Access Layer Source File
  *           for the NXP LPC11xx Device Series
  * @version  V1.02
@@ -410,7 +410,7 @@ uint32_t SystemCoreClock = __SYSTEM_CLOCK;/*!< System Clock Frequency (Core Cloc
 /**
  * Initialize the system
  *
- * @param  none
+ * 
  * @return none
  *
  * @brief  Setup the microcontroller system.

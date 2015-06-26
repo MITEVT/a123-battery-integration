@@ -6,6 +6,7 @@ static uint32_t minimum_cell_mVolts;
 
 void Drain_Config(DRAINING_CONFIG_T *config) {
 	minimum_cell_mVolts = config->min_cell_mVolts;
+	mode = DRAIN_OFF;
 }
 
 //Progresses state of DRAIN state machine

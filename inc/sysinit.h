@@ -1,5 +1,5 @@
 /**************************************************************************//**
- * @file     system_LPC11xx.h
+ * @file     sysinit.h
  * @brief    CMSIS Cortex-M0 Device Peripheral Access Layer Header File
  *           for the NXP LPC11xx Device Series
  * @version  V1.01
@@ -38,7 +38,7 @@ extern uint32_t SystemCoreClock;     /*!< System Clock Frequency (Core Clock)  *
 /**
  * Initialize the system
  *
- * @param  none
+ * 
  * @return none
  *
  * @brief  Setup the microcontroller system.
@@ -49,7 +49,7 @@ extern void SystemInit (void);
 /**
  * Update SystemCoreClock variable
  *
- * @param  none
+ * 
  * @return none
  *
  * @brief  Updates the SystemCoreClock with current core Clock

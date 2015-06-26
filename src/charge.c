@@ -18,6 +18,7 @@ void Charge_Config(CHARGING_CONFIG_T *config) {
 	pack_capacity_cAmpHours = config->cell_capacity_cAmpHours * config->pack_p;
 	max_charge_cAmps = pack_capacity_cAmpHours * (uint32_t)(config->cell_mC_rating) / 1000;
 	lastTimeAbove1A = 0;
+	balancing = false;
 	// Store all values into EEPROM
 }
 
