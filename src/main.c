@@ -68,6 +68,7 @@ static NLG5_ACT_I_T brusa_actual_1;
 static NLG5_ACT_II_T brusa_actual_2;
 static NLG5_TEMP_T brusa_temp;
 static NLG5_ERR_T brusa_error;
+static NLG5_MESSAGES_T brusa_messages;
 static volatile bool brusa_message_send = false;
 
 // On-Chip CCAN
@@ -141,40 +142,6 @@ void _error(ERROR_T errorNo, bool flashLED, bool hang) {
 	} while(hang);
 
 	Board_LED_On();
-}
-
-/**
- * @details Takes a CAN messege object and determines if it is a valid Brusa message.
- * If so, it stuffs it into the appropriate static struct
- * 
- * @param msg CAN message object to decode
- * @return 0 if properly decodes, -1 otherwise
- */
-int8_t Decode_Brusa(CCAN_MSG_OBJ_T *msg) {
-	if (msg->mode_id == NLG5_STATUS) {
-		Brusa_DecodeStatus(&brusa_status, msg);
-	} else if (msg->mode_id == NLG5_TEMP) {
-		Brusa_DecodeTemp(&brusa_temp, msg);
-	} else if (msg->mode_id == NLG5_ACT_I) {
-		Brusa_DecodeActI(&brusa_actual_1, msg);
-	} else if (msg->mode_id == NLG5_ACT_II) {
-		Brusa_DecodeActII(&brusa_actual_2, msg);
-	} else if (msg->mode_id == NLG5_ERR) {
-		// Brusa_DecodeErr(&brusa_error, msg);
-		// [TODO] Figure out why this doesn't work
-
-		msg->data[4] &= 0xF0;
-		brusa_error = 0;
-		uint8_t i;
-		for (i = 0; i < NLG5_ERR_DLC; i++) {
-			brusa_error |= (msg->data[i] << (8 * i));
-		}
-	} else {
-		DEBUG_Println("Unknown Off-Chip Message");
-		return -1;
-	}
-
-	return 0;
 }
 
 /**
@@ -434,6 +401,12 @@ void Init_Globals(void) {
 	pack_state_staged = false;
 
 	mode = IDLE;
+
+	brusa_messages.stat = &brusa_status;
+	brusa_messages.act_i = &brusa_actual_1;
+	brusa_messages.act_ii = &brusa_actual_2;
+	brusa_messages.temp = &brusa_temp;
+	brusa_messages.err = &brusa_error;
 }
 
 /**
@@ -544,6 +517,7 @@ void Init_Timers(void) {
 
 	Chip_TIMER_Enable(LPC_TIMER32_1);
 }
+
 
 // ------------------------------------------------
 // Main Program
@@ -727,15 +701,19 @@ int main(void) {
 		int8_t res = 0;
 		if (tmp == 2) {
 			MCP2515_ReadBuffer(&mcp_msg_obj, 0);
-			res = Decode_Brusa(&mcp_msg_obj);
+			res = Decode_Brusa(&brusa_messages, &mcp_msg_obj);
+			if (res == -1) {
+				DEBUG_Println("Brusa Decode Error");
+				res = 0;
+			}
 			MCP2515_ReadBuffer(&mcp_msg_obj, 1);
-			res = Decode_Brusa(&mcp_msg_obj);
+			res = Decode_Brusa(&brusa_messages, &mcp_msg_obj);
 		} else if (tmp == 0) { // Receive Buffer 0 Full
 			MCP2515_ReadBuffer(&mcp_msg_obj, tmp);
-			res = Decode_Brusa(&mcp_msg_obj);
+			res = Decode_Brusa(&brusa_messages, &mcp_msg_obj);
 		} else if (tmp == 1) { //Receive buffer 1 full
 			MCP2515_ReadBuffer(&mcp_msg_obj, tmp);
-			res = Decode_Brusa(&mcp_msg_obj);
+			res = Decode_Brusa(&brusa_messages, &mcp_msg_obj);
 		} 
 
 		if (res == -1) {
