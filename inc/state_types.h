@@ -62,11 +62,7 @@ typedef enum {
  */
 typedef struct {
 	uint32_t pack_min_mVolts; ///<Lowest cell voltage in pack
-	uint8_t  pack_node_min; ///<Node ID of module with lowest voltage
 	uint32_t pack_max_mVolts; ///<Highest cell voltage in pack
-	uint8_t  pack_node_max; ///<Node ID of module with highest voltage
-	uint32_t pack_avg_mVolts; ///<Average cell voltage in pack
-	uint32_t messagesReceived; ///<Number of A123 MBB messages received
 	uint16_t pack_cAmps_in; ///<Current being supplied by Brusa into Pack
 	bool contactors_closed; ///<State of contactors
 	volatile uint64_t msTicks; ///<Current millisecond count of processor

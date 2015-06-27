@@ -52,10 +52,10 @@ OUT_DIR = bin
 OUT_DIR_TEST = testbin
 
 # directories for testing sources
-TEST_SRCS_DIRS = test $(UNITY_BASE)/src $(UNITY_BASE)/extras/fixture/src 
+TEST_SRCS_DIRS = test $(UNITY_BASE)/src $(UNITY_BASE)/extras/fixture/src
 
 # c files for testing
-C_SRCS_TEST = $(wildcard $(patsubst %, %/*.$(C_EXT), . $(TEST_SRCS_DIRS))) src/charge.c src/ssm.c src/drain.c ../lpc11cx4-library/evt_lib/src/brusa.c
+C_SRCS_TEST = $(wildcard $(patsubst %, %/*.$(C_EXT), . $(TEST_SRCS_DIRS))) src/charge.c src/ssm.c src/drain.c src/pack_manager.c ../lpc11cx4-library/evt_lib/src/brusa.c ../lpc11cx4-library/evt_lib/src/a123mbb.c
 
 # C++ definitions (e.g. "-Dsymbol_with_value=0xDEAD -Dsymbol_without_value")
 CXX_DEFS =
