@@ -47,17 +47,12 @@ handler:
 	switch(mode) {
 		case CHRG_OFF:
 			out_state->balance = false;
-			out_state->balance_mVolts = BCM_BALANCE_OFF;
-			out_state->brusa_mVolts = 0;
-			out_state->brusa_cAmps = 0;
 			out_state->brusa_output = false;
 			out_state->close_contactors = false;
 			break;
 		case CHRG_INIT:
 			// Start charging
-
 			out_state->balance = false;
-			out_state->balance_mVolts = BCM_BALANCE_OFF;
 			out_state->brusa_mVolts = 0;
 			out_state->brusa_cAmps = 0;
 			out_state->brusa_output = true;
@@ -79,6 +74,15 @@ handler:
 			
 			break;
 		case CHRG_CC:
+
+			if (pack_state->brusa_error != 0) {
+				out_state->brusa_output = false;
+				out_state->balance = false;
+				out_state->close_contactors = false;
+				mode = CHRG_OFF;
+				return ERROR_BRUSA;
+			}
+
 			if (pack_state->pack_max_mVolts >= max_cell_mVolts) {
 				// Need to go to CV Mode
 				mode = CHRG_CV;
@@ -108,6 +112,14 @@ handler:
 			break;
 		case CHRG_CV:
 
+			if (pack_state->brusa_error != 0) {
+				out_state->brusa_output = false;
+				out_state->balance = false;
+				out_state->close_contactors = false;
+				mode = CHRG_OFF;
+				return ERROR_BRUSA;
+			}
+
 			if (pack_state->pack_max_mVolts < max_cell_mVolts) {
 				// Need to go to CC Mode
 				mode = CHRG_CC;
@@ -120,15 +132,10 @@ handler:
 				if (pack_state->pack_cAmps_in < 100) {
 					if ((pack_state->msTicks - lastTimeAbove1A) >= 60000) { 	// About 60 Seconds
 						// Done Charging
-						out_state->brusa_mVolts = 0;
-						out_state->brusa_cAmps = 0;
 						out_state->brusa_output = false;
 						out_state->balance = false;
-						out_state->balance_mVolts = BCM_BALANCE_OFF;
 						mode = CHRG_DONE;
-						if (balancing) {
-							return ERROR_CHARGE_SM;
-						}
+						balancing = false;
 						break;
 					} 
 				} else {

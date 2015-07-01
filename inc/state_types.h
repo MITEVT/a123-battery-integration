@@ -26,7 +26,8 @@ typedef enum {
 	ERROR_CAN_BUS = 3, ///<Can bus error
 	ERROR_INCOMPATIBLE_MODE = 4, ///<Incompatible mode error
 	ERROR_CONTACTOR = 5, ///<Contactor circuitry error
-	ERROR_CHARGE_SM = 6 ///<Charge state machine error
+	ERROR_CHARGE_SM = 6, ///<Charge state machine error
+	ERROR_BRUSA = 7
 	} ERROR_T; 
 
 /**

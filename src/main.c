@@ -519,17 +519,6 @@ int main(void) {
 					itoa((uint64_t)brusa_error, str, 2);
 					DEBUG_Println(str);
 					break;
-				// case 'z': // Print out Cell Voltages (Slow)
-				// 	for (count = 0; count < 12; count++) {
-				// 		itoa(mbb_ext[0].cell_mVolts[count], str, 10);
-				// 		DEBUG_Println(str);
-				// 	}
-
-				// 	for (count = 0; count < 12; count++) {
-				// 		itoa(mbb_ext[1].cell_mVolts[count], str, 10);
-				// 		DEBUG_Println(str);
-				// 	}
-				// 	break;
 				default:
 					DEBUG_Print("Unknown Command\r\n");
 			}
@@ -562,7 +551,7 @@ int main(void) {
 		//-----------------------------
 		// Check if SSM has Changed State
 		// Currently only changes Poll Frequency
-		// [TODO] Consider setting a status LED!!
+		// [TODO] Set a status LED!!
 		if (SSM_GetMode() != mode) {
 			mode = SSM_GetMode();
 			switch (SSM_GetMode()) {
@@ -637,7 +626,6 @@ int main(void) {
 		
 		//-----------------------------
 		// Check for and decode A123 Messages
-
 		if (!RingBuffer_IsEmpty(&rx_buffer)) {
 
 			CCAN_MSG_OBJ_T temp_msg;
