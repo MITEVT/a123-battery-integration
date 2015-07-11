@@ -2,7 +2,7 @@
  * @file drain.h
  * @author Eric Ponce
  * @date 25 June 2015
- * @brief Drain statr machine
+ * @brief Drain state machine
  */
 
 #ifndef _DRAIN_H_

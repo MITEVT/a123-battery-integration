@@ -33,6 +33,8 @@
 # Utilities
 *.jar
 *.dia
+*.sh
+.DS_Store
 
 bin/
 testbin/

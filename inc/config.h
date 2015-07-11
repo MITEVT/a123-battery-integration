@@ -1,3 +1,10 @@
+/**
+ * @file config.h
+ * @author Eric Ponce
+ * @date 11 July 2015
+ * @brief BMS Configuration File
+ */
+
 #ifndef _CONFIG_H_
 #define _CONFIG_H_
 
