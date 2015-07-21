@@ -32,7 +32,7 @@
 
 # Utilities
 *.jar
-*.dia
+*.dia*
 *.sh
 .DS_Store
 
