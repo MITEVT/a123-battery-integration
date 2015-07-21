@@ -1,6 +1,6 @@
-update=Thursday, June 25, 2015 'PMt' 08:22:07 PM
+update=Tuesday, July 21, 2015 'PMt' 06:34:17 PM
 version=1
-last_client=kicad
+last_client=pcbnew
 [general]
 version=1
 RootSch=
@@ -56,8 +56,8 @@ PageLayoutDescrFile=
 LastNetListRead=
 PadDrill=0
 PadDrillOvalY=0
-PadSizeH=1.175
-PadSizeV=1.175
+PadSizeH=3.6576
+PadSizeV=2.032
 PcbTextSizeV=1.5
 PcbTextSizeH=1.5
 PcbTextThickness=0.3
