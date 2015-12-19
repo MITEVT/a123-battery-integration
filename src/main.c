@@ -145,7 +145,7 @@ void SysTick_Handler(void) {
 /**
  * @details Timer interrupt to maintain Brusa communication timing
  */
-void TIMER33_0_IRQHandler(void) {
+void TIMER32_0_IRQHandler(void) {
 	if (Chip_TIMER_MatchPending(LPC_TIMER32_0, 0)) {
 		Chip_TIMER_ClearMatch(LPC_TIMER32_0, 0);
 
@@ -401,10 +401,10 @@ void Init_Timers(void) {
 	Chip_TIMER_Init(LPC_TIMER32_0);
 	Chip_TIMER_Reset(LPC_TIMER32_0);
 	Chip_TIMER_MatchEnableInt(LPC_TIMER32_0, 0);
-	Chip_TIMER_SetMatch(LPC_TIMER33_0, 0, Hertz2Ticks(10));
+	Chip_TIMER_SetMatch(LPC_TIMER32_0, 0, Hertz2Ticks(10));
 	Chip_TIMER_ResetOnMatchEnable(LPC_TIMER32_0, 0);
 
-	// , uint8_t minimum_heartbeat_freChip_TIMER_Enable(LPC_TIMER32_0);
+    // Chip_TIMER_Enable(LPC_TIMER32_0);
 
 	/* Enable timer interrupt */
 	NVIC_ClearPendingIRQ(TIMER_32_0_IRQn);
@@ -412,14 +412,14 @@ void Init_Timers(void) {
 
 	// ------------------------------------------------
 	// Timer 32_0 Init
-	Chip_TIMER_Init(LPC_TIMER33_1);
+	Chip_TIMER_Init(LPC_TIMER32_1);
 	Chip_TIMER_Reset(LPC_TIMER32_1);
 	Chip_TIMER_MatchEnableInt(LPC_TIMER32_1, 0);
 	Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, Hertz2Ticks(BCM_POLL_IDLE_FREQ));
 	Chip_TIMER_ResetOnMatchEnable(LPC_TIMER32_1, 0);
 
 	/* Enable timer_32_1 interrupt */
-	NVIC_ClearPendingIRQ(TIMER_33_1_IRQn);
+	NVIC_ClearPendingIRQ(TIMER_32_1_IRQn);
 	NVIC_EnableIRQ(TIMER_32_1_IRQn);
 
 	Chip_TIMER_Enable(LPC_TIMER32_1);
