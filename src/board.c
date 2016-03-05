@@ -105,13 +105,13 @@ void Board_LED_Off(void) {
 	Chip_GPIO_SetPinOutLow(LPC_GPIO, LED1_GPIO, LED1_PIN);
 }
 
-void Board_Switch_Init(void) {
+void Board_Switch_Init(uint8_t port, uint8_t pin) {
 	Chip_GPIO_Init(LPC_GPIO);
-	Chip_GPIO_SetPinDIRInput(LPC_GPIO, SWITCH_GPIO, SWITCH_PIN);
+	Chip_GPIO_SetPinDIRInput(LPC_GPIO, port, pin);
 }
 
-bool Board_Switch_Read(void) {
-	return Chip_GPIO_GetPinState(LPC_GPIO, SWITCH_GPIO, SWITCH_PIN);
+bool Board_Switch_Read(uint8_t port, uint8_t pin) {
+	return Chip_GPIO_GetPinState(LPC_GPIO, port, pin);
 
 }
 

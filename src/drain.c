@@ -26,6 +26,11 @@ ERROR_T Drain_Step(PACK_STATE_T* pack_state, MODE_REQUEST_T req_mode, OUTPUT_STA
 			mode = DRAIN_OFF;
 			out_state->close_contactors = false;
 			break;
+		case REQ_BALANCING:
+			// Move to exit state
+			mode = DRAIN_OFF;
+			out_state->close_contactors = false;
+			break;
 		case REQ_NONE:
 			// Chill
 			break;

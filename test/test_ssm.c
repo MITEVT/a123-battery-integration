@@ -47,6 +47,13 @@ TEST(SSM_Test, test_to_drain) {
 	TEST_ASSERT_EQUAL(CHRG_OFF, Charge_GetMode());
 }
 
+TEST(SSM_Test, test_to_bal) {
+	TEST_ASSERT_EQUAL(IDLE, SSM_GetMode());
+	TEST_ASSERT_EQUAL(ERROR_NONE, SSM_Step(&pack_state, INP_BALANCE, &out_state));
+	TEST_ASSERT_EQUAL(BALANCING, SSM_GetMode());
+	TEST_ASSERT_EQUAL(CHRG_OFF, Charge_GetMode());
+}
+
 TEST(SSM_Test, test_to_charge_drain) {
 	TEST_ASSERT_EQUAL(IDLE, SSM_GetMode());
 	TEST_ASSERT_EQUAL(ERROR_NONE, SSM_Step(&pack_state, INP_CHRG, &out_state));
@@ -56,13 +63,25 @@ TEST(SSM_Test, test_to_charge_drain) {
 	TEST_ASSERT_EQUAL(IDLE, SSM_GetMode());
 	TEST_ASSERT_EQUAL(ERROR_NONE, SSM_Step(&pack_state, INP_DRAIN, &out_state));
 	TEST_ASSERT_EQUAL(DRAINING, SSM_GetMode());
+}
 
+TEST(SSM_Test, test_to_charge_bal) {
+	TEST_ASSERT_EQUAL(IDLE, SSM_GetMode());
+	TEST_ASSERT_EQUAL(ERROR_NONE, SSM_Step(&pack_state, INP_CHRG, &out_state));
+	TEST_ASSERT_EQUAL(CHARGING, SSM_GetMode());
+	TEST_ASSERT_EQUAL(ERROR_NONE, SSM_Step(&pack_state, INP_IDLE, &out_state));
+	TEST_ASSERT_EQUAL(ERROR_NONE, SSM_Step(&pack_state, INP_IDLE, &out_state)); 
+	TEST_ASSERT_EQUAL(IDLE, SSM_GetMode());
+	TEST_ASSERT_EQUAL(ERROR_NONE, SSM_Step(&pack_state, INP_BALANCE, &out_state));
+	TEST_ASSERT_EQUAL(BALANCING, SSM_GetMode());
 }
 
 TEST_GROUP_RUNNER(SSM_Test) {
 	RUN_TEST_CASE(SSM_Test, test_to_charge);
 	RUN_TEST_CASE(SSM_Test, test_to_drain);
+	RUN_TEST_CASE(SSM_Test, test_to_bal);
 	RUN_TEST_CASE(SSM_Test, test_to_charge_drain);
+	RUN_TEST_CASE(SSM_Test, test_to_charge_bal)
 }
 
 

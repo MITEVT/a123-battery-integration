@@ -34,8 +34,13 @@
 #define LED5_GPIO 3
 #define LED5_PIN 3
 
-#define SWITCH_GPIO 0
-#define SWITCH_PIN  1
+#define SWITCH1_GPIO 0
+#define SWITCH1_PIN  1
+#define SWITCH1 SWITCH1_GPIO, SWITCH1_PIN
+
+#define SWITCH2_GPIO 1
+#define SWITCH2_PIN 8
+#define SWITCH2 SWITCH2_GPIO, SWITCH2_PIN
 
 #define CONTACTOR_P_GPIO 	2
 #define CONTACTOR_P_PIN  	8
@@ -99,13 +104,13 @@ void Board_LED_Off(void);
 /**
  * @details Initialize board input switch
  */
-void Board_Switch_Init(void);
+void Board_Switch_Init(uint8_t port, uint8_t pin);
 
 /**
  * @details Get board input switch state
  * @return state of switch
  */
-bool Board_Switch_Read(void);
+bool Board_Switch_Read(uint8_t port, uint8_t pin);
 
 /**
  * @details Initialize contactors

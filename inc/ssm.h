@@ -11,6 +11,7 @@
 #include "state_types.h"
 #include "charge.h"
 #include "drain.h"
+#include "balance.h"
 
 /**
  * @details Initialize and reset the super state machine

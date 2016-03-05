@@ -36,7 +36,8 @@ typedef enum {
 typedef enum {
 	IDLE, ///<Idle mode
 	CHARGING, ///<Charging mode
-	DRAINING ///<Drain mode
+	DRAINING, ///<Drain mode
+	BALANCING ///<Balance mode
 } MODE_T;
 
 /**
@@ -46,6 +47,7 @@ typedef enum {
 	REQ_IDLE, ///<Request to Idle
 	REQ_CHARGING, ///<Request to Charge
 	REQ_DRAINING, ///<Request to Drain
+	REQ_BALANCING, //<Request to Balance
 	REQ_NONE ///<No request
 } MODE_REQUEST_T;
 
@@ -55,6 +57,7 @@ typedef enum {
 typedef enum {
 	INP_CHRG, ///<Input for Charging
 	INP_DRAIN, ///<Input for Draining
+	INP_BALANCE, ///<Input for Balancing
 	INP_IDLE ///<Input for Idle
 } MODE_INPUT_T;
 

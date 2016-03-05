@@ -35,6 +35,7 @@
 #define BCM_POLL_IDLE_FREQ 1
 #define BCM_POLL_CHARGING_FREQ 40
 #define BCM_POLL_DRAINING_FREQ 40
+#define BCM_POLL_BALANCING_FREQ 40
 
 #define TIMED_MESSAGE_DELAY 1000
 
@@ -246,8 +247,8 @@ void Init_Core(void) {
 void Init_SM(void) {
 
 	CHARGING_CONFIG_T charge_config;
-	charge_config.pack_s = 22;
-	charge_config.pack_p = 3;
+	charge_config.pack_s = CELL_SERIES;
+	charge_config.pack_p = CELL_PARALLEL;
 	charge_config.max_cell_mVolts = 3600;
 	charge_config.cc_cell_mVolts = 3700;
 	charge_config.cell_capacity_cAmpHours = 2000; 	// 20 Ahr
@@ -271,7 +272,8 @@ void Init_Board(void) {
 	// Board Periph Init
 	Board_LED_Init();
 	Board_LED_On();
-	Board_Switch_Init();
+	Board_Switch_Init(SWITCH1);
+	Board_Switch_Init(SWITCH2);
 	Board_Contactors_Init();
 
 	// ------------------------------------------------
@@ -528,10 +530,14 @@ int main(void) {
 		// Detect Input Changes (Default to IDLE)
 
 		MODE_INPUT_T inp = INP_IDLE;
-		if (!Board_Switch_Read()) {
+		if (!Board_Switch_Read(SWITCH1)) {
 			inp = INP_CHRG;
 		} else {
 			inp = INP_IDLE;
+		}
+
+		if (!Board_Switch_Read(SWITCH2)) {
+			inp = INP_BALANCE;
 		}
 
 		//-----------------------------
@@ -565,6 +571,10 @@ int main(void) {
 					break;
 				case DRAINING:
 					Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, Hertz2Ticks(BCM_POLL_DRAINING_FREQ));
+					Chip_TIMER_Reset(LPC_TIMER32_1);
+					break;
+				case BALANCING:
+					Chip_TIMER_SetMatch(LPC_TIMER32_1, 0, Hertz2Ticks(BCM_POLL_BALANCING_FREQ));
 					Chip_TIMER_Reset(LPC_TIMER32_1);
 					break;
 			}
@@ -681,7 +691,17 @@ int main(void) {
 					break;
 				case 5:
 					DEBUG_Print("Mode: ");
-					DEBUG_Println((SSM_GetMode() == CHARGING) ? "Chrg":"Idle");
+					if (SSM_GetMode() == CHARGING) {
+						DEBUG_Println("Chrg");
+					} else if (SSM_GetMode() == DRAINING) {
+						DEBUG_Println("Drain");
+					} else if (SSM_GetMode() == BALANCING) {
+						DEBUG_Println("Bal");
+					} else if (SSM_GetMode() == IDLE) {
+						DEBUG_Println("Idle");
+					} else {
+						DEBUG_Println("Unknown");
+					}
 					break;
 				case 6:
 					DEBUG_Print("Brusa Output: ");
