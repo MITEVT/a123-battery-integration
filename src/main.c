@@ -8,6 +8,7 @@
 #include "board.h"
 #include "config.h"
 #include <string.h>
+#include <stdlib.h>
 
 #define UART_BAUD 57600
 #define SPI_BAUD  500000
@@ -292,8 +293,8 @@ void Init_Globals(void) {
 	brusa_control.clear_error = 0;
 	brusa_control.ventilation_request = 1;
 	brusa_control.max_mains_cAmps = BRUSA_MAX_MAINS_CAMPS;
-	brusa_control.output_mVolts = 0;
-	brusa_control.output_cAmps = 0;
+	brusa_control.output_mV = 0;
+	brusa_control.output_cA = 0;
 
 	pack_state.pack_min_mVolts = 0xFFFFFFFF;
 	pack_state.pack_max_mVolts = 0;
@@ -590,12 +591,12 @@ int main(void) {
 
 		if (out_state.brusa_output) {
 			brusa_control.clear_error = out_state.brusa_clear_latch;
-			brusa_control.output_mVolts = out_state.brusa_mVolts;
-			brusa_control.output_cAmps = out_state.brusa_cAmps;
+			brusa_control.output_mV = out_state.brusa_mVolts;
+			brusa_control.output_cA = out_state.brusa_cAmps;
 			Chip_TIMER_Enable(LPC_TIMER32_0);
 		} else {
-			brusa_control.output_mVolts = 0;
-			brusa_control.output_cAmps = 0;
+			brusa_control.output_mV = 0;
+			brusa_control.output_cA = 0;
 			Chip_TIMER_Disable(LPC_TIMER32_0);
 		}
 
@@ -670,12 +671,12 @@ int main(void) {
 					
 					break;
 				case 1:
-					itoa(brusa_control.output_mVolts, str, 10);
+					itoa(brusa_control.output_mV, str, 10);
 					DEBUG_Print("Brusa out V: ");
 					DEBUG_Println(str);
 					break;
 				case 2:
-					itoa(brusa_control.output_cAmps, str, 10);
+					itoa(brusa_control.output_cA, str, 10);
 					DEBUG_Print("Brusa out C: ");
 					DEBUG_Println(str);
 					break;

@@ -61,7 +61,7 @@ C_SRCS_TEST = $(wildcard $(patsubst %, %/*.$(C_EXT), . $(TEST_SRCS_DIRS))) src/c
 CXX_DEFS =
 
 # C definitions
-C_DEFS = -DCORE_M0
+C_DEFS = -DCORE_M0 -D_LEGACY_
 
 # ASM definitions
 AS_DEFS = -D__STARTUP_CLEAR_BSS -D__START=main -DRAM_MODE=1
